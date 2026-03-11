@@ -1,0 +1,69 @@
+name: liftlytics
+description: Liftlytics - Workout tracker & gym progress analytics app.
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # DATABASE
+  isar: 3.1.0
+  isar_flutter_libs: 3.1.0
+
+  # STATE / STORAGE
+  path_provider: ^2.1.2
+  provider: ^6.1.5+1
+  shared_preferences: ^2.2.2
+
+  # AUDIO
+  audioplayers: ^5.2.1
+
+  # CHART
+  fl_chart: ^0.68.0
+
+  # FILE PICKER
+  file_picker: ^8.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.9
+  isar_generator: 3.1.0
+
+  # ICON GENERATOR
+  flutter_launcher_icons: ^0.13.1
+
+  # (Birazdan splash yapacağız)
+  flutter_native_splash: ^2.4.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/sounds/
+    - assets/icon/app_icon.png
+
+# APP ICON CONFIG
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/icon/app_icon.png
+  min_sdk_android: 21
+  remove_alpha_ios: true
+  adaptive_icon_background: "#FFFFFF"
+
+# SPLASH SCREEN CONFIG
+flutter_native_splash:
+  color: "#FFFFFF"
+  image: assets/icon/app_icon.png
+  android: true
+  ios: true

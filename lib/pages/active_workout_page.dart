@@ -25,224 +25,137 @@ class ActiveWorkoutPage extends StatefulWidget {
 
 class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Timer? _timer;
-  Timer? _restTimer;
-
+  Timer? _saveDebounce;
   final AudioPlayer _player = AudioPlayer();
 
   int _seconds = 0;
-  int _restRemaining = 0;
-  String _restType = "";
-
   bool workoutStarted = false;
   bool _isDisposed = false;
 
+  final Map<int, DateTime> _setRestStarts = {}; 
+  final Map<int, int> _setRestDurations = {}; 
+  final Map<int, bool> _isExerciseRest = {}; 
+
   final Map<String, TextEditingController> _kgControllers = {};
   final Map<String, TextEditingController> _repControllers = {};
-  final Map<String, TextEditingController> _rpeControllers = {};
+  final Map<String, TextEditingController> _rpeControllers = {}; 
 
   @override
   void initState() {
     super.initState();
-
-    if (widget.autoStart) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_isDisposed) {
-          _startWorkout();
-        }
-      });
-    }
-  }
-
-  TextEditingController _kgController(String key, double value) {
-    if (!_kgControllers.containsKey(key)) {
-      _kgControllers[key] =
-          TextEditingController(text: value == 0 ? "" : value.toString());
-    }
-    return _kgControllers[key]!;
-  }
-
-  TextEditingController _repController(String key, int value) {
-    if (!_repControllers.containsKey(key)) {
-      _repControllers[key] =
-          TextEditingController(text: value == 0 ? "" : value.toString());
-    }
-    return _repControllers[key]!;
-  }
-
-  TextEditingController _rpeController(String key, double? value) {
-    if (!_rpeControllers.containsKey(key)) {
-      _rpeControllers[key] =
-          TextEditingController(text: value == null ? "" : value.toString());
-    }
-    return _rpeControllers[key]!;
-  }
-
-  String _formatTime() {
-    final m = (_seconds ~/ 60).toString().padLeft(2, '0');
-    final s = (_seconds % 60).toString().padLeft(2, '0');
-    return "$m:$s";
-  }
-
-  Future<void> _playBeep() async {
-    try {
-      await _player.play(
-        AssetSource('sounds/airHorn.mp3'),
-        volume: 1.0,
-      );
-    } catch (_) {}
-  }
-
-  void _startWorkout() async {
-    if (widget.workout.exercises.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Önce hareket ekleyin")),
-      );
-      return;
-    }
-
-    await IsarService.saveWorkout(widget.workout);
-
-    setState(() {
+    if (widget.workout.id != 0 && widget.workout.date.year > 2000) {
       workoutStarted = true;
-      _seconds = 0;
-    });
+      _resumeTimer();
+    } else if (widget.autoStart) {
+      _startWorkout();
+    }
+  }
 
+  void _resumeTimer() {
     _timer?.cancel();
-
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _isDisposed) return;
-
       setState(() {
-        _seconds++;
+        _seconds = DateTime.now().difference(widget.workout.date).inSeconds;
       });
     });
   }
 
-  Future<void> _finishWorkout() async {
-    _timer?.cancel();
-    _restTimer?.cancel();
-
-    await IsarService.saveWorkout(widget.workout);
-
-    if (!mounted) return;
-
-    await Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) => WorkoutSummaryPage(
-          workout: widget.workout,
-          totalSeconds: _seconds,
-        ),
-      ),
-    );
-  }
-
-  Future<void> _addExercise() async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => const ExercisePickerPage(),
-      ),
-    );
-
-    if (result == null) return;
-
-    final exercise = Exercise()
-      ..name = result["name"]
-      ..region = result["region"];
-
-    exercise.sets = [
-      ExerciseSet()..kg = 0..reps = 0..isCompleted = false,
-      ExerciseSet()..kg = 0..reps = 0..isCompleted = false,
-      ExerciseSet()..kg = 0..reps = 0..isCompleted = false,
-    ];
-
+  void _startWorkout() {
     setState(() {
-      widget.workout.exercises.add(exercise);
+      workoutStarted = true;
+      widget.workout.date = DateTime.now();
+      _seconds = 0;
     });
-
-    await IsarService.saveWorkout(widget.workout);
-  }
-
-  void _addSet(Exercise exercise) {
-    setState(() {
-      exercise.sets.add(
-        ExerciseSet()..kg = 0..reps = 0..isCompleted = false,
-      );
-    });
-
     IsarService.saveWorkout(widget.workout);
+    _resumeTimer();
   }
 
-  void _deleteSet(Exercise exercise, ExerciseSet set) {
-    setState(() {
-      exercise.sets.remove(set);
-    });
-
-    IsarService.saveWorkout(widget.workout);
+  int _getSetHash(Exercise ex, ExerciseSet s) {
+    return Object.hash(ex.name, widget.workout.exercises.indexOf(ex), ex.sets.indexOf(s));
   }
 
-  void _startSetRest() {
-    final rest = context.read<AppSettings>().restSeconds;
-
-    _restType = "SET REST";
-
-    _restTimer?.cancel();
+  void _handleSetToggle(Exercise ex, ExerciseSet set) {
+    final settings = context.read<AppSettings>();
+    final setHash = _getSetHash(ex, set);
 
     setState(() {
-      _restRemaining = rest;
-    });
-
-    _restTimer =
-        Timer.periodic(const Duration(seconds: 1), (timer) async {
-      if (_restRemaining == 0) {
-        timer.cancel();
-        await _playBeep();
+      set.isCompleted = !set.isCompleted;
+      if (set.isCompleted) {
+        _setRestStarts.clear();
+        _setRestDurations.clear();
+        _isExerciseRest.clear();
+        
+        _setRestStarts[setHash] = DateTime.now();
+        bool allSetsDone = ex.sets.every((s) => s.isCompleted);
+        
+        _setRestDurations[setHash] = allSetsDone ? settings.exerciseRestSeconds : settings.restSeconds;
+        _isExerciseRest[setHash] = allSetsDone;
+        
       } else {
-        setState(() {
-          _restRemaining--;
-        });
+        _setRestStarts.remove(setHash);
+        _setRestDurations.remove(setHash);
+        _isExerciseRest.remove(setHash);
       }
     });
+    _debouncedSave();
+  }
+
+  TextEditingController _getController(Map<String, TextEditingController> map, String key, String initialValue) {
+    if (!map.containsKey(key)) {
+      map[key] = TextEditingController(text: initialValue == "0" || initialValue == "0.0" || initialValue == "null" ? "" : initialValue);
+    }
+    return map[key]!;
+  }
+
+  void _debouncedSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 400), () => IsarService.saveWorkout(widget.workout));
   }
 
   @override
   void dispose() {
     _isDisposed = true;
-
     _timer?.cancel();
-    _restTimer?.cancel();
-
-    for (var c in _kgControllers.values) {
-      c.dispose();
-    }
-
-    for (var c in _repControllers.values) {
-      c.dispose();
-    }
-
-    for (var c in _rpeControllers.values) {
-      c.dispose();
-    }
-
+    _saveDebounce?.cancel();
+    _kgControllers.values.forEach((c) => c.dispose());
+    _repControllers.values.forEach((c) => c.dispose());
+    _rpeControllers.values.forEach((c) => c.dispose());
     _player.dispose();
-
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    int activeRestRemaining = 0;
+    String restLabel = "SET ARASI";
+
+    _setRestStarts.forEach((hash, startAt) {
+      int duration = _setRestDurations[hash] ?? 60;
+      int rem = duration - DateTime.now().difference(startAt).inSeconds;
+      if (rem > activeRestRemaining) {
+        activeRestRemaining = rem;
+        bool isExercise = _isExerciseRest[hash] ?? false;
+        restLabel = isExercise ? "HAREKET ARASI" : "SET ARASI";
+      }
+    });
+
     return Scaffold(
+      backgroundColor: const Color(0xFF050816),
       appBar: AppBar(
-        title: Text(widget.workout.name),
+        backgroundColor: const Color(0xFF111018),
+        title: Text(widget.workout.name.toUpperCase(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+        centerTitle: true,
         actions: [
           if (workoutStarted)
-            Padding(
-              padding: const EdgeInsets.only(right: 20),
-              child: Center(
+            Center(
+              child: Container(
+                margin: const EdgeInsets.only(right: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
                 child: Text(
-                  _formatTime(),
-                  style: const TextStyle(fontSize: 16),
+                  "${(_seconds ~/ 60).toString().padLeft(2, '0')}:${(_seconds % 60).toString().padLeft(2, '0')}",
+                  style: const TextStyle(fontSize: 18, color: Color(0xFF3B82F6), fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -250,198 +163,219 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       ),
       body: Column(
         children: [
-          if (_restRemaining > 0)
+          // 🔥 UYARI BARI (KOMPAKT TASARIM)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            color: Colors.white.withOpacity(0.02),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, color: Colors.white38, size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "İşaretlenmeyen setler gelişim grafiğinde görünmeyecektir.",
+                    style: TextStyle(color: Colors.white54, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (activeRestRemaining > 0)
             Container(
-              padding: const EdgeInsets.all(12),
-              color: Colors.orange.withOpacity(0.15),
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: restLabel == "HAREKET ARASI" ? Colors.blue.withOpacity(0.15) : Colors.orange.withOpacity(0.1),
+                border: Border(bottom: BorderSide(color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, width: 1)),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(Icons.timer),
-                  const SizedBox(width: 10),
-                  Text(
-                    "$_restType : $_restRemaining s",
-                    style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold),
-                  ),
+                  Icon(Icons.hourglass_bottom_rounded, color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Text("$restLabel : $activeRestRemaining s", 
+                  style: TextStyle(color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, fontSize: 15, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
+            
           Expanded(
             child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 130),
               itemCount: widget.workout.exercises.length,
               itemBuilder: (context, index) {
-                final ex = widget.workout.exercises[index];
-
-                return Card(
-                  margin: const EdgeInsets.all(10),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment:
-                              MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              ex.name,
-                              style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.add),
-                              onPressed: () => _addSet(ex),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        ...ex.sets.map((set) {
-                          final setIndex = ex.sets.indexOf(set);
-                          final key = "${ex.name}-$setIndex";
-
-                          return Padding(
-                            padding:
-                                const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              children: [
-                                Checkbox(
-                                  value: set.isCompleted,
-                                  onChanged: (val) {
-                                    setState(() {
-                                      set.isCompleted =
-                                          val ?? false;
-                                    });
-
-                                    if (val == true) {
-                                      _startSetRest();
-                                    }
-
-                                    IsarService.saveWorkout(
-                                        widget.workout);
-                                  },
-                                ),
-
-                                Text("Set ${setIndex + 1}"),
-
-                                const SizedBox(width: 10),
-
-                                SizedBox(
-                                  width: 60,
-                                  child: TextField(
-                                    controller:
-                                        _kgController(key, set.kg),
-                                    keyboardType:
-                                        TextInputType.number,
-                                    decoration:
-                                        const InputDecoration(
-                                      hintText: "kg",
-                                      isDense: true,
-                                    ),
-                                    onChanged: (val) {
-                                      set.kg =
-                                          double.tryParse(val) ?? 0;
-                                      IsarService.saveWorkout(widget.workout);
-                                    },
-                                  ),
-                                ),
-
-                                const SizedBox(width: 6),
-
-                                SizedBox(
-                                  width: 60,
-                                  child: TextField(
-                                    controller:
-                                        _repController(key, set.reps),
-                                    keyboardType:
-                                        TextInputType.number,
-                                    decoration:
-                                        const InputDecoration(
-                                      hintText: "reps",
-                                      isDense: true,
-                                    ),
-                                    onChanged: (val) {
-                                      set.reps =
-                                          int.tryParse(val) ?? 0;
-                                      IsarService.saveWorkout(widget.workout);
-                                    },
-                                  ),
-                                ),
-
-                                const SizedBox(width: 6),
-
-                                SizedBox(
-                                  width: 60,
-                                  child: TextField(
-                                    controller:
-                                        _rpeController(key, set.rpe),
-                                    keyboardType:
-                                        TextInputType.number,
-                                    decoration:
-                                        const InputDecoration(
-                                      hintText: "RPE",
-                                      isDense: true,
-                                    ),
-                                    onChanged: (val) {
-                                      set.rpe =
-                                          double.tryParse(val);
-                                      IsarService.saveWorkout(widget.workout);
-                                    },
-                                  ),
-                                ),
-
-                                const Spacer(),
-
-                                IconButton(
-                                  icon: const Icon(
-                                      Icons.delete,
-                                      color: Colors.red),
-                                  onPressed: () =>
-                                      _deleteSet(ex, set),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ],
-                    ),
-                  ),
-                );
+                return _exerciseCard(widget.workout.exercises[index]);
               },
             ),
           ),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _buildBottomActionButtons(),
+    );
+  }
 
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
+  // 🔥 EKRANA SIĞMASI İÇİN KÜÇÜLTÜLEN KART TASARIMI
+  Widget _exerciseCard(Exercise ex) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12), // Önceden 16'ydı
+      padding: const EdgeInsets.all(12), // Önceden 16'ydı
+      decoration: BoxDecoration(
+        color: const Color(0xFF101826),
+        borderRadius: BorderRadius.circular(20), // Önceden 22'ydi
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FloatingActionButton.extended(
-            heroTag: "addExercise",
-            onPressed: _addExercise,
-            icon: const Icon(Icons.add),
-            label: const Text("Exercise"),
+          Row(
+            children: [
+              Expanded(child: Text(ex.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))), // 17'den 15'e düştü
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent, size: 20),
+                onPressed: () {
+                  setState(() => widget.workout.exercises.remove(ex));
+                  _debouncedSave();
+                },
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF3B82F6), size: 24), // 28'den 24'e düştü
+                onPressed: () => setState(() => ex.sets.add(ExerciseSet()..kg = 0..reps = 0)),
+              ),
+            ],
           ),
+          const Divider(color: Colors.white10, height: 12), // 24'ten 12'ye düştü
+          ...ex.sets.asMap().entries.map((entry) {
+            final setIndex = entry.key;
+            final set = entry.value;
+            final key = "${ex.name}-$setIndex";
+            final hash = _getSetHash(ex, set);
+            
+            int rem = 0;
+            if (_setRestStarts.containsKey(hash)) {
+              rem = (_setRestDurations[hash] ?? 60) - DateTime.now().difference(_setRestStarts[hash]!).inSeconds;
+              if (rem <= 0) {
+                if (rem == 0) {
+                  final settings = context.read<AppSettings>();
+                  if (settings.restSoundEnabled) {
+                    if (settings.restSoundType == "custom" && settings.customSoundPath.isNotEmpty) {
+                      _player.setSource(DeviceFileSource(settings.customSoundPath))
+                             .then((_) => _player.resume())
+                             .catchError((e) => debugPrint("Custom ses hatası: $e"));
+                    } else {
+                      _player.setSource(AssetSource('sounds/${settings.restSoundType}.mp3'))
+                             .then((_) => _player.resume())
+                             .catchError((e) => debugPrint("Asset ses hatası: $e"));
+                    }
+                  }
+                }
+                rem = 0;
+              }
+            }
 
-          const SizedBox(height: 10),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4), // 8'den 4'e düştü
+              child: Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => _handleSetToggle(ex, set),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      width: 32, height: 32, // 38x38'den 32x32'ye düştü
+                      decoration: BoxDecoration(
+                        color: set.isCompleted ? (rem > 0 ? Colors.orange : Colors.green) : Colors.white10,
+                        borderRadius: BorderRadius.circular(10), // 12'den 10'a düştü
+                        border: Border.all(color: set.isCompleted ? Colors.transparent : Colors.white24),
+                      ),
+                      child: rem > 0 && set.isCompleted
+                          ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                          : Icon(set.isCompleted ? Icons.check_rounded : Icons.add_task_rounded, color: Colors.white, size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _inputField(_getController(_kgControllers, key, set.kg.toString()), "kg", (v) => set.kg = double.tryParse(v) ?? 0),
+                  const SizedBox(width: 4),
+                  _inputField(_getController(_repControllers, key, set.reps.toString()), "rep", (v) => set.reps = int.tryParse(v) ?? 0),
+                  const SizedBox(width: 4),
+                  _inputField(_getController(_rpeControllers, key, (set.rpe ?? "").toString()), "RIR", (v) => set.rpe = double.tryParse(v)),
+                  const Spacer(),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.remove_circle_outline, color: Colors.white24, size: 18), // 20'den 18'e düştü
+                    onPressed: () => setState(() => ex.sets.remove(set)),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
 
-          if (!workoutStarted)
-            FloatingActionButton.extended(
-              heroTag: "startWorkout",
-              onPressed: _startWorkout,
-              icon: const Icon(Icons.play_arrow),
-              label: const Text("Start"),
+  // 🔥 INPUT ALANLARI KÜÇÜLTÜLDÜ
+  Widget _inputField(TextEditingController controller, String hint, Function(String) onChanged) {
+    return Container(
+      width: 48, height: 32, // 58x38'den 48x32'ye düştü
+      decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
+      child: TextField(
+        controller: controller,
+        textAlign: TextAlign.center,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), // 13'ten 12'ye
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: const TextStyle(color: Colors.white24, fontSize: 10), // 11'den 10'a
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: const EdgeInsets.only(top: 8),
+        ),
+        onChanged: (v) { onChanged(v); _debouncedSave(); },
+      ),
+    );
+  }
+
+  Widget _buildBottomActionButtons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: FloatingActionButton.extended(
+              heroTag: "ex_add",
+              backgroundColor: const Color(0xFF101826),
+              onPressed: () async {
+                final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const ExercisePickerPage()));
+                if (res != null) {
+                  setState(() {
+                    widget.workout.exercises.add(
+                      Exercise()
+                        ..name = res["name"]
+                        ..region = res["region"]
+                        ..sets = List.generate(3, (_) => ExerciseSet()..kg = 0..reps = 0)
+                    );
+                  });
+                  _debouncedSave();
+                }
+              },
+              icon: const Icon(Icons.add_rounded, color: Color(0xFF3B82F6)),
+              label: const Text("HAREKET EKLE", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
             ),
-
-          if (workoutStarted)
-            FloatingActionButton.extended(
-              heroTag: "finishWorkout",
-              onPressed: _finishWorkout,
-              icon: const Icon(Icons.stop),
-              label: const Text("Finish"),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: FloatingActionButton.extended(
+              heroTag: "ex_end",
+              backgroundColor: workoutStarted ? Colors.green : const Color(0xFF3B82F6),
+              onPressed: workoutStarted ? () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WorkoutSummaryPage(workout: widget.workout, totalSeconds: _seconds))) : _startWorkout,
+              icon: Icon(workoutStarted ? Icons.stop_circle_outlined : Icons.play_circle_fill_rounded, color: Colors.white),
+              label: Text(workoutStarted ? "BİTİR" : "BAŞLAT", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
             ),
+          ),
         ],
       ),
     );

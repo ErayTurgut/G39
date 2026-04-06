@@ -1,65 +1,131 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
+// Servis ve Sayfalar
 import 'services/isar_service.dart';
 import 'services/app_settings.dart';
-
-import 'pages/workout_tab.dart';
+import 'pages/workout_page.dart';
 import 'pages/history_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/settings_page.dart';
+import 'pages/login_page.dart'; 
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await IsarService.init();
+  // 1. Flutter ve Splash Hazırlığı
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
+  try {
+    // 2. KRİTİK SIRALAMA: Önce temel servisler
+    await Firebase.initializeApp();
+    await IsarService.init(); 
+    await initializeDateFormatting('tr_TR', null);
 
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => AppSettings(),
-      child: const FitnessApp(),
-    ),
-  );
+    // 3. AppSettings'i oluştur (İçindeki _loadSettings karanlık modu default yapacak)
+    final settings = AppSettings();
+
+    // 4. RevenueCat Ayarı
+    await Purchases.setLogLevel(LogLevel.debug);
+    await Purchases.configure(
+      PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 
+    );
+
+    runApp(
+      ChangeNotifierProvider<AppSettings>.value(
+        value: settings,
+        child: const FitnessApp(),
+      ),
+    );
+  } catch (e) {
+    debugPrint("G39 Kritik Başlatma Hatası: $e");
+    // Hata durumunda bile uygulamanın çökmemesi için yedek başlatıcı
+    runApp(
+      ChangeNotifierProvider(
+        create: (_) => AppSettings(),
+        child: const FitnessApp(),
+      ),
+    );
+  }
 }
-
-/* ========================================================= */
-/* ================= THEMES ================================= */
-/* ========================================================= */
-
-final ThemeData _darkTheme = ThemeData(
-  brightness: Brightness.dark,
-  scaffoldBackgroundColor: const Color(0xFF0A0B10),
-  useMaterial3: true,
-);
-
-final ThemeData _lightTheme = ThemeData(
-  brightness: Brightness.light,
-  scaffoldBackgroundColor: Colors.white,
-  useMaterial3: true,
-);
-
-/* ========================================================= */
-/* ================= APP ROOT =============================== */
-/* ========================================================= */
 
 class FitnessApp extends StatelessWidget {
   const FitnessApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // AppSettings verilerini anlık izliyoruz
     final settings = context.watch<AppSettings>();
-
+    
     return MaterialApp(
+      title: 'G39',
       debugShowCheckedModeBanner: false,
-      theme: settings.darkMode ? _darkTheme : _lightTheme,
-      home: const MainPage(), // 🔥 Splash kaldırıldı
+      
+      // 🔥 DEFAULT DARK MODE GARANTİSİ:
+      // settings.darkMode true ise direkt Dark, değilse Light çakar.
+      themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
+      
+      // AYDINLIK TEMA AYARLARI
+      theme: ThemeData(
+        brightness: Brightness.light,
+        useMaterial3: true,
+        primaryColor: const Color(0xFF3B82F6),
+        scaffoldBackgroundColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+      ),
+      
+      // KARANLIK TEMA AYARLARI (G39 PRO STYLE)
+      darkTheme: ThemeData(
+        brightness: Brightness.dark, 
+        scaffoldBackgroundColor: const Color(0xFF050816), // Senin meşhur derin siyahın
+        useMaterial3: true,
+        primaryColor: const Color(0xFF3B82F6),
+        cardColor: const Color(0xFF101826),
+        canvasColor: const Color(0xFF050816), // Alt menülerin arka planı için
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Color(0xFF101826),
+        ),
+      ),
+      
+      home: const AuthWrapper(), 
     );
   }
 }
 
-/* ========================================================= */
-/* ================= MAIN PAGE ============================== */
-/* ========================================================= */
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Firebase snapshot geldiğinde Splash'i kaldırıyoruz
+        if (snapshot.connectionState != ConnectionState.waiting) {
+          FlutterNativeSplash.remove();
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF050816),
+            body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
+          );
+        }
+
+        // Kullanıcı giriş yapmışsa MainPage, yapmamışsa LoginPage
+        return snapshot.hasData ? const MainPage() : const LoginPage();
+      },
+    );
+  }
+}
 
 class MainPage extends StatefulWidget {
   const MainPage({super.key});
@@ -71,44 +137,36 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> {
   int currentIndex = 0;
 
-  final List<Widget> pages = const [
-    WorkoutTab(),
-    HistoryPage(),
-    ProgressPage(),
-    SettingsPage(),
+  final List<Widget> pages = [
+    const WorkoutPage(),
+    const HistoryPage(),
+    const ProgressPage(),
+    const SettingsPage(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    // BottomNavigationBar rengini AppSettings'e göre dinamik yapıyoruz
+    final bool isDark = context.watch<AppSettings>().darkMode;
 
     return Scaffold(
       body: IndexedStack(
-        index: currentIndex,
-        children: pages,
+        index: currentIndex, 
+        children: pages
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
-        selectedItemColor: theme.colorScheme.primary,
-        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        elevation: 10,
+        backgroundColor: isDark ? const Color(0xFF101826) : Colors.white,
+        selectedItemColor: const Color(0xFF3B82F6),
+        unselectedItemColor: isDark ? Colors.white38 : Colors.black38,
         onTap: (index) => setState(() => currentIndex = index),
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fitness_center),
-            label: "Workout",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: "History",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.show_chart),
-            label: "Progress",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: "Personalize",
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: "Antrenman"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Geçmiş"),
+          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Gelişim"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profil"),
         ],
       ),
     );

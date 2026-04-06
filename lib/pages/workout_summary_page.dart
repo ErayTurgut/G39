@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/workout_model.dart';
-import '../services/isar_service.dart';
+import '../services/isar_service.dart'; // Senin servisin
 
 class WorkoutSummaryPage extends StatefulWidget {
   final Workout workout;
@@ -17,361 +17,280 @@ class WorkoutSummaryPage extends StatefulWidget {
 }
 
 class _WorkoutSummaryPageState extends State<WorkoutSummaryPage> {
-
-  double strongestToday = 0;
-  String strongestExerciseToday = "";
-
-  double lifetimeStrongest = 0;
-  String lifetimeStrongestExercise = "";
-
-  int lifetimePRCount = 0;
-
-  bool _isDisposed = false;
-
-  double _calculate1RM(double kg, int reps) {
-    return kg * (1 + reps / 30);
-  }
-
-  Future<void> _calculateStats() async {
-
-    final workouts = await IsarService.getWorkoutsAsc();
-
-    if (!mounted || _isDisposed) return;
-
-    final Map<String,double> bestPerExercise = {};
-
-    double globalStrongest = 0;
-    String globalExercise = "";
-
-    for (var w in workouts) {
-      for (var ex in w.exercises) {
-        for (var s in ex.sets) {
-
-          if (!s.isCompleted) continue;
-
-          final oneRM = _calculate1RM(s.kg, s.reps);
-
-          if (oneRM > globalStrongest) {
-            globalStrongest = oneRM;
-            globalExercise = ex.name;
-          }
-
-          final current = bestPerExercise[ex.name] ?? 0;
-
-          if (oneRM > current) {
-            bestPerExercise[ex.name] = oneRM;
-          }
-
-        }
-      }
-    }
-
-    double todayStrongest = 0;
-    String todayExercise = "";
-
-    for (var ex in widget.workout.exercises) {
-      for (var s in ex.sets) {
-
-        if (!s.isCompleted) continue;
-
-        final oneRM = _calculate1RM(s.kg, s.reps);
-
-        if (oneRM > todayStrongest) {
-          todayStrongest = oneRM;
-          todayExercise = ex.name;
-        }
-
-      }
-    }
-
-    if (!mounted || _isDisposed) return;
-
-    setState(() {
-      lifetimePRCount = bestPerExercise.length;
-      lifetimeStrongest = globalStrongest;
-      lifetimeStrongestExercise = globalExercise;
-
-      strongestToday = todayStrongest;
-      strongestExerciseToday = todayExercise;
-    });
-
-  }
-
-  String _formatTime(int seconds) {
-    final m = (seconds ~/ 60).toString().padLeft(2,'0');
-    final s = (seconds % 60).toString().padLeft(2,'0');
-    return "$m:$s";
-  }
+  double strongest1RM = 0;
+  String strongest1RMExercise = "";
+  double maxWeight = 0;
+  String maxWeightExercise = "";
+  
+  // Tüm zamanların rekorlarını tutacak map
+  Map<String, double> allTimePRs = {};
+  bool isLoadingPRs = true;
 
   @override
   void initState() {
     super.initState();
     _calculateStats();
+    _calculateAllTimePRs();
   }
 
-  @override
-  void dispose() {
-    _isDisposed = true;
-    super.dispose();
+  void _calculateStats() {
+    double top1RM = 0;
+    String top1RMEx = "";
+    double topWeight = 0;
+    String topWeightEx = "";
+
+    for (final ex in widget.workout.exercises) {
+      for (final s in ex.sets) {
+        if (s.kg <= 0) continue;
+        
+        final current1RM = s.kg * (1 + s.reps / 30);
+        if (current1RM > top1RM) {
+          top1RM = current1RM;
+          top1RMEx = ex.name;
+        }
+
+        if (s.kg > topWeight) {
+          topWeight = s.kg;
+          topWeightEx = ex.name;
+        }
+      }
+    }
+    setState(() {
+      strongest1RM = top1RM;
+      strongest1RMExercise = top1RMEx;
+      maxWeight = topWeight;
+      maxWeightExercise = topWeightEx;
+    });
+  }
+
+  // --- SENİN SERVİSİNİ KULLANARAK REKORLARI HESAPLAYAN KISIM ---
+  Future<void> _calculateAllTimePRs() async {
+    // Senin servisinden tüm geçmişi çekiyoruz
+    final allWorkouts = await IsarService.getWorkouts();
+    Map<String, double> tempPRs = {};
+
+    for (var w in allWorkouts) {
+      // Eğer bu workout şu an bitirdiğimiz antrenmansa, rekor karşılaştırması için onu atla
+      if (w.id == widget.workout.id && widget.workout.id != 0) continue;
+
+      for (var ex in w.exercises) {
+        for (var s in ex.sets) {
+          if (!tempPRs.containsKey(ex.name) || s.kg > tempPRs[ex.name]!) {
+            tempPRs[ex.name] = s.kg;
+          }
+        }
+      }
+    }
+
+    setState(() {
+      allTimePRs = tempPRs;
+      isLoadingPRs = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-
     int totalSets = 0;
-    Map<String,int> regionCount = {};
-
-    for (var exercise in widget.workout.exercises) {
-
-      totalSets += exercise.sets.length;
-
-      final region = exercise.region;
-      regionCount[region] = (regionCount[region] ?? 0) + 1;
-
+    Set<String> regions = {};
+    for (final ex in widget.workout.exercises) {
+      totalSets += ex.sets.length;
+      if (ex.region.isNotEmpty) regions.add(ex.region);
     }
+    String regionsText = regions.isEmpty ? "Genel" : regions.join(", ");
 
     return Scaffold(
-
+      backgroundColor: const Color(0xFF050816),
       appBar: AppBar(
-        title: const Text("Workout Summary"),
+        backgroundColor: const Color(0xFF111018),
+        title: const Text("Antrenman Özeti"),
+        elevation: 0,
+        centerTitle: true,
       ),
-
       body: Padding(
-        padding: const EdgeInsets.all(20),
-
-        child: ListView(
-
+        padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
+            Expanded(
+              child: ListView(
+                children: [
+                  _headerCard(),
+                  const SizedBox(height: 16),
+                  _dashboardRow(totalSets, regionsText),
+                  const SizedBox(height: 24),
 
-            Text(
-              "Süre: ${_formatTime(widget.totalSeconds)}",
-              style: const TextStyle(fontSize:20),
-            ),
+                  const Text("Bugünün Analizi", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white70)),
+                  const SizedBox(height: 12),
+                  
+                  // AKILLI PR KARTI
+                  if (maxWeight > 0)
+                    _smartPRCard(
+                      title: "Günün En Ağırı",
+                      exercise: maxWeightExercise,
+                      weight: maxWeight,
+                      allTimeMax: allTimePRs[maxWeightExercise] ?? 0,
+                      icon: Icons.fitness_center,
+                      color: const Color(0xFF1E1B4B),
+                    ),
+                  
+                  const SizedBox(height: 8),
 
-            const SizedBox(height:8),
+                  if (strongest1RM > 0)
+                    _prCard(
+                      title: "Tahmini 1RM (Güç)",
+                      subtitle: "$strongest1RMExercise - ${strongest1RM.toStringAsFixed(1)} kg",
+                      icon: Icons.bolt,
+                      color: const Color(0xFF312E81),
+                    ),
 
-            Text(
-              "Toplam Set: $totalSets",
-              style: const TextStyle(fontSize:20),
-            ),
+                  const SizedBox(height: 24),
+                  const Text("Egzersiz Detayları", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                  const SizedBox(height: 12),
 
-            const SizedBox(height:8),
-
-            Text(
-              "Toplam Egzersiz: ${widget.workout.exercises.length}",
-              style: const TextStyle(fontSize:20),
-            ),
-
-            const SizedBox(height:30),
-
-            if (strongestToday > 0)
-              Card(
-                color: Colors.orange.withOpacity(0.1),
-
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-
-                    children: [
-
-                      const Text(
-                        "🔥 Strongest Lift Today",
-                        style: TextStyle(
-                          fontSize:18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height:6),
-
-                      Text(
-                        "$strongestExerciseToday\n${strongestToday.toStringAsFixed(1)} kg (1RM)",
-                        style: const TextStyle(fontSize:18),
-                      ),
-
-                    ],
-                  ),
-                ),
-              ),
-
-            const SizedBox(height:20),
-
-            if (lifetimeStrongest > 0)
-              Card(
-                color: Colors.blue.withOpacity(0.08),
-
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-
-                    children: [
-
-                      const Text(
-                        "🏆 Lifetime Strongest",
-                        style: TextStyle(
-                          fontSize:18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height:6),
-
-                      Text(
-                        "$lifetimeStrongestExercise\n${lifetimeStrongest.toStringAsFixed(1)} kg (1RM)",
-                        style: const TextStyle(fontSize:18),
-                      ),
-
-                      const SizedBox(height:8),
-
-                      Text(
-                        "Total PR Exercises: $lifetimePRCount",
-                        style: const TextStyle(fontSize:16),
-                      ),
-
-                    ],
-                  ),
-                ),
-              ),
-
-            const SizedBox(height:30),
-
-            const Text(
-              "Exercises",
-              style: TextStyle(
-                fontSize:22,
-                fontWeight: FontWeight.bold,
+                  ...widget.workout.exercises.map((ex) => _exerciseTile(ex)),
+                ],
               ),
             ),
-
-            const SizedBox(height:15),
-
-            ...widget.workout.exercises.map((ex) {
-
-              return Card(
-
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
-
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-
-                    children: [
-
-                      Text(
-                        ex.name,
-                        style: const TextStyle(
-                          fontSize:18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(height:8),
-
-                      ...ex.sets.map((set) {
-
-                        final index = ex.sets.indexOf(set);
-
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical:4),
-
-                          child: Row(
-                            children: [
-
-                              Text("Set ${index+1}"),
-
-                              const SizedBox(width:12),
-
-                              Text("${set.kg} kg"),
-
-                              const SizedBox(width:12),
-
-                              Text("${set.reps} reps"),
-
-                              const SizedBox(width:12),
-
-                              Text(
-                                set.rpe != null
-                                    ? "RPE ${set.rpe}"
-                                    : "-",
-                              ),
-
-                              const SizedBox(width:12),
-
-                              if (set.failure)
-                                const Text(
-                                  "FAIL",
-                                  style: TextStyle(
-                                    color: Colors.red,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-
-                            ],
-                          ),
-                        );
-
-                      }),
-
-                    ],
-                  ),
-                ),
-              );
-
-            }),
-
-            const SizedBox(height:30),
-
-            const Text(
-              "Bölge Dağılımı",
-              style: TextStyle(
-                fontSize:22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height:15),
-
-            ...regionCount.entries.map((entry) {
-
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical:4),
-
-                child: Text(
-                  "${entry.key}: ${entry.value}",
-                  style: const TextStyle(fontSize:18),
-                ),
-              );
-
-            }),
-
-            const SizedBox(height:30),
-
-            SizedBox(
-              width: double.infinity,
-
-              child: ElevatedButton(
-
-                onPressed: () {
-                  if (!context.mounted) return;
-                  Navigator.popUntil(context,(route)=>route.isFirst);
-                },
-
-                child: const Text("Ana Sayfaya Dön"),
-              ),
-            ),
-
+            _finishButton(context),
           ],
-
         ),
-
       ),
-
     );
-
   }
 
+  Widget _smartPRCard({required String title, required String exercise, required double weight, required double allTimeMax, required IconData icon, required Color color}) {
+    // Eğer bugünkü ağırlık, geçmiş rekorlardan büyükse yeni rekor sayılır
+    bool isNewRecord = allTimeMax == 0 || weight > allTimeMax;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: isNewRecord ? Colors.orangeAccent.withOpacity(0.5) : Colors.white10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: isNewRecord ? Colors.orangeAccent : Colors.white24, size: 24),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white60, fontSize: 12)),
+                const SizedBox(height: 2),
+                Text("$exercise - $weight kg", style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                if (isNewRecord && allTimeMax > 0)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text("🔥 YENİ KİŞİSEL REKOR!", style: TextStyle(color: Colors.orangeAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                  )
+                else if (allTimeMax > 0)
+                   Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text("Kişisel Rekorun: $allTimeMax kg", style: const TextStyle(color: Colors.white38, fontSize: 11)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- DİĞER YARDIMCI WIDGET'LAR ---
+
+  Widget _headerCard() {
+    return Container(
+      width: double.infinity, padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(colors: [Color(0xFF1E293B), Color(0xFF0F172A)]),
+        borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.white10),
+      ),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.workspace_premium, color: Colors.orangeAccent, size: 28),
+          SizedBox(width: 12),
+          Text("Gelişim Kaydedildi!", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
+  Widget _dashboardRow(int totalSets, String regionsText) {
+    return Row(
+      children: [
+        Expanded(child: _statBox(title: "Süre", value: "${(widget.totalSeconds ~/ 60)} dk", icon: Icons.timer_outlined)),
+        const SizedBox(width: 6),
+        Expanded(child: _statBox(title: "Hareket", value: "${widget.workout.exercises.length}", icon: Icons.fitness_center)),
+        const SizedBox(width: 6),
+        Expanded(child: _statBox(title: "Set", value: "$totalSets", icon: Icons.reorder)),
+        const SizedBox(width: 6),
+        Expanded(child: _statBox(title: "Bölge", value: regionsText, icon: Icons.accessibility_new, isSmallText: true)),
+      ],
+    );
+  }
+
+  Widget _statBox({required String title, required String value, required IconData icon, bool isSmallText = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+      decoration: BoxDecoration(color: const Color(0xFF101826), borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.white10)),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.blueAccent, size: 16),
+          const SizedBox(height: 6),
+          Text(title, style: const TextStyle(color: Colors.white54, fontSize: 10)),
+          const SizedBox(height: 2),
+          Text(value, textAlign: TextAlign.center, style: TextStyle(fontSize: isSmallText ? 10 : 14, fontWeight: FontWeight.bold, color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+        ],
+      ),
+    );
+  }
+
+  Widget _prCard({required String title, required String subtitle, required IconData icon, required Color color}) {
+    return Container(
+      width: double.infinity, padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withOpacity(0.05))),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.orangeAccent, size: 24),
+          const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white60, fontSize: 12)),
+            Text(subtitle, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+          ])),
+        ],
+      ),
+    );
+  }
+
+  Widget _exerciseTile(Exercise ex) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: const Color(0xFF101826), borderRadius: BorderRadius.circular(16)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(ex.name, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+            Text(ex.region, style: const TextStyle(color: Colors.blueAccent, fontSize: 11)),
+          ]),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, children: ex.sets.asMap().entries.map((e) => Text("S${e.key + 1}: ${e.value.kg}kg x ${e.value.reps}", style: const TextStyle(color: Colors.white60, fontSize: 12))).toList()),
+        ],
+      ),
+    );
+  }
+
+  Widget _finishButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity, height: 56,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF3B82F6), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+        onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+        child: const Text("ANTRENMANI TAMAMLA", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+      ),
+    );
+  }
 }

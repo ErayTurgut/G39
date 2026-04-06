@@ -1,8 +1,8 @@
-name: liftlytics
-description: Liftlytics - Workout tracker & gym progress analytics app.
+name: g39
+description: G39 - Workout tracker & gym progress analytics app.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+7
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -10,60 +10,62 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
   cupertino_icons: ^1.0.8
-
-  # DATABASE
   isar: 3.1.0
   isar_flutter_libs: 3.1.0
-
-  # STATE / STORAGE
   path_provider: ^2.1.2
-  provider: ^6.1.5+1
   shared_preferences: ^2.2.2
-
-  # AUDIO
+  provider: ^6.1.5+1
+  intl: ^0.19.0
   audioplayers: ^5.2.1
-
-  # CHART
+  flutter_svg: ^2.0.10
+  font_awesome_flutter: ^10.7.0
   fl_chart: ^0.68.0
-
-  # FILE PICKER
   file_picker: ^8.1.2
+  flutter_cube: ^0.1.1
+  firebase_core: ^4.6.0
+  firebase_auth: ^6.3.0
+  google_sign_in: ^6.2.1
+  sign_in_with_apple: ^6.1.1
+  purchases_flutter: ^9.15.1 
+  package_info_plus: ^9.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-
-  flutter_lints: ^6.0.0
+  flutter_lints: ^3.0.0
   build_runner: ^2.4.9
   isar_generator: 3.1.0
-
-  # ICON GENERATOR
   flutter_launcher_icons: ^0.13.1
-
-  # (Birazdan splash yapacağız)
   flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
-
   assets:
     - assets/sounds/
     - assets/icon/app_icon.png
+    - assets/models/
+    - assets/models/Untitled.obj
 
-# APP ICON CONFIG
+# --- UYGULAMA İKONU (LAUNCHER) ---
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/icon/app_icon.png
+  image_path: "assets/icon/app_icon.png"
   min_sdk_android: 21
-  remove_alpha_ios: true
-  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_background: "#050816" # 🔥 Arka plan siyah
+  adaptive_icon_foreground: "assets/icon/app_icon.png" # 🔥 İkonun kendisi
 
-# SPLASH SCREEN CONFIG
+# --- NATIVE SPLASH (KESİN ÇÖZÜM) ---
 flutter_native_splash:
-  color: "#FFFFFF"
+  color: "#050816"
   image: assets/icon/app_icon.png
   android: true
   ios: true
+  fullscreen: false
+  
+  android_12:
+    color: "#050816"
+    image: assets/icon/app_icon.png
+    # 🔥 İŞTE O BEYAZ HALKAYI SİLEN KRİTİK SATIR:
+    icon_backgroundColor: "#050816"

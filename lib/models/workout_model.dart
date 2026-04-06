@@ -38,3 +38,29 @@ class ExerciseSet {
   /// failure set mi
   bool failure = false;
 }
+
+// 🔥 YENİ: KALORİ TAKİP MODELİ
+@collection
+class CalorieEntry {
+  Id id = Isar.autoIncrement;
+
+  @Index()
+  late DateTime date; // Giriş yapılan tarih ve saat
+
+  late double amount; // Alınan kalori miktarı (kcal)
+
+  String? note; // "Öğle yemeği", "Protein bar" gibi notlar
+  
+  double? protein;
+  double? carbs;
+  double? fat;
+
+  // Isar için boş constructor şart
+  CalorieEntry();
+
+  CalorieEntry.create({
+    required this.date,
+    required this.amount,
+    this.note,
+  });
+}

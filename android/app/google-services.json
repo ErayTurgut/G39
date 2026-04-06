@@ -7,12 +7,33 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:797155022064:android:abc7bb05486894dd20de35",
+        "mobilesdk_app_id": "1:797155022064:android:897dea92d7cf990f20de35",
         "android_client_info": {
-          "package_name": "com.eray.fitness_app"
+          "package_name": "com.eray.G39.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "797155022064-3hlduedttukov8st87nu32tlgsoakep0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.eray.G39.app",
+            "certificate_hash": "742be007b4c53048242662dc5b3d41c9892bc2b9"
+          }
+        },
+        {
+          "client_id": "797155022064-rl0hilcvhvrn3duhe6s4o3rodaffinp3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.eray.G39.app",
+            "certificate_hash": "f846c473e4e3bd9590198790055f89cdee8b5a7e"
+          }
+        },
+        {
+          "client_id": "797155022064-6jglkve7jdrqcq18hol53jce7r52gqdc.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyACboGLGZwvha-89GKoY4OYDXMKQTn7uKk"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "797155022064-6jglkve7jdrqcq18hol53jce7r52gqdc.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

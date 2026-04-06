@@ -1,6 +1,6 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
-import '../main.dart';
+import 'dart:async';
+import '../main.dart'; // MainPage'e gitmek için
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -9,11 +9,10 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-
-  final List<_Particle> particles = [];
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _opacityAnimation;
 
   @override
   void initState() {
@@ -21,126 +20,89 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(milliseconds: 1500),
     );
 
-    _generateParticles();
+    // İkonun büyüme efekti (Bounce)
+    _scaleAnimation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.bounceOut,
+    );
+
+    // Opaklık geçişi
+    _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
+    );
+
     _controller.forward();
 
-    _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
+    // 3 saniye sonra ana sayfaya yönlendir
+    Timer(const Duration(seconds: 3), () {
+      if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MainPage()),
+          MaterialPageRoute(builder: (context) => const MainPage()),
         );
       }
     });
   }
 
-  void _generateParticles() {
-    final random = Random();
-    for (int i = 0; i < 40; i++) {
-      particles.add(
-        _Particle(
-          angle: random.nextDouble() * pi * 2,
-          speed: random.nextDouble() * 250 + 150,
-          size: random.nextDouble() * 10 + 5,
-        ),
-      );
-    }
-  }
-
-  double _shake() {
-    if (_controller.value < 0.25) {
-      return sin(_controller.value * 120) * 15;
-    }
-    return 0;
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final explodeProgress =
-        (_controller.value - 0.4).clamp(0.0, 1.0);
-
     return Scaffold(
-      body: Container(
-        color: const Color(0xFF0F1115),
-        child: AnimatedBuilder(
-          animation: _controller,
-          builder: (context, child) {
-            return Stack(
-              alignment: Alignment.center,
-              children: [
-
-                // Shockwave ring
-                if (explodeProgress > 0)
-                  Container(
-                    width: 600 * explodeProgress,
-                    height: 600 * explodeProgress,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.orange.withOpacity(
-                          1 - explodeProgress,
-                        ),
-                        width: 4,
+      backgroundColor: const Color(0xFF050816), // Senin Midnight Navy rengin
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Animasyonlu İkon
+            FadeTransition(
+              opacity: _opacityAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    image: const DecorationImage(
+                      image: AssetImage('assets/app_icon.jpg'), // İkon yolunu kontrol et keke
+                      fit: BoxFit.contain,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFFF5722).withOpacity(0.3), // Turuncu parlama
+                        blurRadius: 30,
+                        spreadRadius: 5,
                       ),
-                    ),
-                  ),
-
-                // Particles
-                ...particles.map((p) {
-                  final dx =
-                      cos(p.angle) * p.speed * explodeProgress;
-                  final dy =
-                      sin(p.angle) * p.speed * explodeProgress;
-
-                  return Positioned(
-                    left:
-                        MediaQuery.of(context).size.width / 2 + dx,
-                    top:
-                        MediaQuery.of(context).size.height / 2 + dy,
-                    child: Opacity(
-                      opacity: 1 - explodeProgress,
-                      child: Container(
-                        width: p.size,
-                        height: p.size,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFF8C42),
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-
-                // Kettlebell
-                Transform.translate(
-                  offset: Offset(_shake(), 0),
-                  child: Transform.scale(
-                    scale: 1 - (explodeProgress * 0.3),
-                    child: Image.asset(
-                      'assets/icon/app_icon.png',
-                      width: 180,
-                    ),
+                    ],
                   ),
                 ),
-              ],
-            );
-          },
+              ),
+            ),
+            const SizedBox(height: 40),
+            // Yükleniyor Yazısı
+            const Text(
+              "FITNESS ANALYZER",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 4,
+              ),
+            ),
+            const SizedBox(height: 10),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5722)), // Turuncu loader
+              strokeWidth: 2,
+            ),
+          ],
         ),
       ),
     );
   }
-}
-
-class _Particle {
-  final double angle;
-  final double speed;
-  final double size;
-
-  _Particle({
-    required this.angle,
-    required this.speed,
-    required this.size,
-  });
 }

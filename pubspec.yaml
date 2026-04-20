@@ -2,7 +2,8 @@ name: G39
 description: G39 - Workout tracker & gym progress analytics app.
 publish_to: 'none'
 
-version: 1.0.0+14
+# 🔥 Build numarasını +16 yaptık, Apple kabul etsin diye.
+version: 1.0.0+16
 
 environment:
   sdk: ">=3.3.0 <4.0.0"
@@ -18,6 +19,7 @@ dependencies:
   provider: ^6.1.5+1
   intl: ^0.19.0
   audioplayers: ^5.2.1
+  wakelock_plus: ^1.2.8 # 🔥 EKRANI UYANIK TUTAN PAKET EKLENDİ
   flutter_svg: ^2.0.10
   font_awesome_flutter: ^10.7.0
   fl_chart: ^0.68.0
@@ -43,7 +45,8 @@ flutter:
   uses-material-design: true
   assets:
     - assets/sounds/
-    - assets/icon/app_icon.jpg
+    # 🔥 ARTIK JPG YOK, SADECE PNG:
+    - assets/icon/app_icon.png
     - assets/models/
     - assets/models/Untitled.obj
 
@@ -53,10 +56,11 @@ flutter_launcher_icons:
   ios: true
   image_path: "assets/icon/app_icon.png"
   min_sdk_android: 21
-  adaptive_icon_background: "#050816" # 🔥 Arka plan siyah
-  adaptive_icon_foreground: "assets/icon/app_icon.png" # 🔥 İkonun kendisi
+  adaptive_icon_background: "#050816"
+  adaptive_icon_foreground: "assets/icon/app_icon.png"
+  remove_alpha_ios: true # 🔥 iOS Beyazlık engelleme çabası
 
-# --- NATIVE SPLASH (KESİN ÇÖZÜM) ---
+# --- NATIVE SPLASH ---
 flutter_native_splash:
   color: "#050816"
   image: assets/icon/app_icon.png
@@ -67,5 +71,4 @@ flutter_native_splash:
   android_12:
     color: "#050816"
     image: assets/icon/app_icon.png
-    # 🔥 İŞTE O BEYAZ HALKAYI SİLEN KRİTİK SATIR:
     icon_backgroundColor: "#050816"

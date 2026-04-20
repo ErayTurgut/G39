@@ -5,6 +5,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:wakelock_plus/wakelock_plus.dart'; // 🔥 Eklendi
 
 // Servis ve Sayfalar
 import 'services/isar_service.dart';
@@ -20,13 +22,32 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
+  // 🔥 EKRANI UYANIK TUT (Antrenman sırasında kapanmasın diye)
+  WakelockPlus.enable();
+
+  // 🔥 APPLE MUSIC ÇAKIŞMASINI ÖNLEYEN KRİTİK AYAR
+  await AudioPlayer.global.setAudioContext(AudioContext(
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.ambient, // Diğer müzikleri durdurmaz
+      options: [
+        AVAudioSessionOptions.mixWithOthers, // Apple Music ile sesi karıştırır
+        AVAudioSessionOptions.duckOthers,    // Bip çalarken arkadaki müziği hafif kısar
+      ],
+    ),
+    android: AudioContextAndroid(
+      isContentContentType: AndroidContentType.sonification,
+      usageType: AndroidUsageType.assistanceSonification,
+      audioFocus: AndroidAudioFocus.none,
+    ),
+  ));
+  
   try {
     // 2. KRİTİK SIRALAMA: Önce temel servisler
     await Firebase.initializeApp();
     await IsarService.init(); 
     await initializeDateFormatting('tr_TR', null);
 
-    // 3. AppSettings'i oluştur (İçindeki _loadSettings karanlık modu default yapacak)
+    // 3. AppSettings'i oluştur
     final settings = AppSettings();
 
     // 4. RevenueCat Ayarı
@@ -43,7 +64,6 @@ Future<void> main() async {
     );
   } catch (e) {
     debugPrint("G39 Kritik Başlatma Hatası: $e");
-    // Hata durumunda bile uygulamanın çökmemesi için yedek başlatıcı
     runApp(
       ChangeNotifierProvider(
         create: (_) => AppSettings(),
@@ -58,18 +78,13 @@ class FitnessApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // AppSettings verilerini anlık izliyoruz
     final settings = context.watch<AppSettings>();
     
     return MaterialApp(
       title: 'G39',
       debugShowCheckedModeBanner: false,
-      
-      // 🔥 DEFAULT DARK MODE GARANTİSİ:
-      // settings.darkMode true ise direkt Dark, değilse Light çakar.
       themeMode: settings.darkMode ? ThemeMode.dark : ThemeMode.light,
       
-      // AYDINLIK TEMA AYARLARI
       theme: ThemeData(
         brightness: Brightness.light,
         useMaterial3: true,
@@ -82,14 +97,13 @@ class FitnessApp extends StatelessWidget {
         ),
       ),
       
-      // KARANLIK TEMA AYARLARI (G39 PRO STYLE)
       darkTheme: ThemeData(
         brightness: Brightness.dark, 
-        scaffoldBackgroundColor: const Color(0xFF050816), // Senin meşhur derin siyahın
+        scaffoldBackgroundColor: const Color(0xFF050816),
         useMaterial3: true,
         primaryColor: const Color(0xFF3B82F6),
         cardColor: const Color(0xFF101826),
-        canvasColor: const Color(0xFF050816), // Alt menülerin arka planı için
+        canvasColor: const Color(0xFF050816),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xFF101826),
         ),
@@ -108,7 +122,6 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Firebase snapshot geldiğinde Splash'i kaldırıyoruz
         if (snapshot.connectionState != ConnectionState.waiting) {
           FlutterNativeSplash.remove();
         }
@@ -120,7 +133,6 @@ class AuthWrapper extends StatelessWidget {
           );
         }
 
-        // Kullanıcı giriş yapmışsa MainPage, yapmamışsa LoginPage
         return snapshot.hasData ? const MainPage() : const LoginPage();
       },
     );
@@ -146,7 +158,6 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
-    // BottomNavigationBar rengini AppSettings'e göre dinamik yapıyoruz
     final bool isDark = context.watch<AppSettings>().darkMode;
 
     return Scaffold(

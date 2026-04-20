@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
-import '../main.dart'; // MainPage'e gitmek için
+import '../main.dart'; // MainPage'in yolunu kendi klasör yapına göre kontrol et
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -31,7 +31,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     // Opaklık geçişi
     _opacityAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.5, curve: Curves.easeIn)),
+      CurvedAnimation(
+        parent: _controller, 
+        curve: const Interval(0.0, 0.5, curve: Curves.easeIn),
+      ),
     );
 
     _controller.forward();
@@ -55,12 +58,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF050816), // Senin Midnight Navy rengin
+      backgroundColor: const Color(0xFF050816), // Midnight Navy
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Animasyonlu İkon
+            // Animasyonlu Oval İkon
             FadeTransition(
               opacity: _opacityAnimation,
               child: ScaleTransition(
@@ -69,36 +72,51 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   width: 180,
                   height: 180,
                   decoration: BoxDecoration(
+                    shape: BoxShape.circle, // 🔥 İKONU OVAL/DAİRE YAPAN SATIR
                     image: const DecorationImage(
-                      image: AssetImage('assets/app_icon.jpg'), // İkon yolunu kontrol et keke
-                      fit: BoxFit.contain,
+                      image: AssetImage('assets/icon/app_icon.png'), // Uzantıyı .png olarak düzelttik
+                      fit: BoxFit.cover, // Dairenin içini tam doldurması için
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFFF5722).withOpacity(0.3), // Turuncu parlama
-                        blurRadius: 30,
-                        spreadRadius: 5,
+                        color: const Color(0xFFFF5722).withOpacity(0.4), // Turuncu parlama
+                        blurRadius: 40,
+                        spreadRadius: 10,
                       ),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 40),
-            // Yükleniyor Yazısı
+            const SizedBox(height: 50),
+            // Uygulama İsmi
             const Text(
-              "FITNESS ANALYZER",
+              "G39 FITNESS",
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 6,
               ),
             ),
             const SizedBox(height: 10),
-            const CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5722)), // Turuncu loader
-              strokeWidth: 2,
+            const Text(
+              "WORKOUT TRACKER",
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 12,
+                letterSpacing: 2,
+              ),
+            ),
+            const SizedBox(height: 40),
+            // Loader
+            const SizedBox(
+              width: 30,
+              height: 30,
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF5722)),
+                strokeWidth: 2,
+              ),
             ),
           ],
         ),

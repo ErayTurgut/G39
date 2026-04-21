@@ -30,6 +30,7 @@ class _ExercisePickerPageState extends State<ExercisePickerPage> {
     {"name": "Chest Fly", "region": "Chest", "type": "Machine"},
     {"name": "Dumbbell Fly", "region": "Chest", "type": "Free"},
     {"name": "Cable Fly", "region": "Chest", "type": "Cable"},
+	{"name": "Incline Dumbbell Fly", "region": "Chest", "type": "Free"},
     {"name": "Cable Crossover", "region": "Chest", "type": "Cable"},
     {"name": "Pec Deck", "region": "Chest", "type": "Machine"},
     {"name": "Push Up", "region": "Chest", "type": "Bodyweight"},
@@ -38,6 +39,8 @@ class _ExercisePickerPageState extends State<ExercisePickerPage> {
 
     /// ================= BACK (SIRT) =================
     {"name": "Deadlift", "region": "Back", "type": "Free"},
+	{"name": "Sumo Deadlift", "region": "Leg", "type": "Free"},
+	{"name": "Romanian Deadlift", "region": "Leg", "type": "Free"},
     {"name": "Barbell Row", "region": "Back", "type": "Free"},
     {"name": "Dumbbell Row", "region": "Back", "type": "Free"},
     {"name": "Meadows Row", "region": "Back", "type": "Free"},
@@ -50,6 +53,7 @@ class _ExercisePickerPageState extends State<ExercisePickerPage> {
     {"name": "Straight Arm Pulldown", "region": "Back", "type": "Cable"},
     {"name": "Single Arm Lat Pulldown", "region": "Back", "type": "Cable"},
     {"name": "Cable Row", "region": "Back", "type": "Cable"},
+	{"name": "Single Arm Cable Row", "region": "Back", "type": "Cable"},
     {"name": "Pull Up", "region": "Back", "type": "Bodyweight"},
     {"name": "Chin Up", "region": "Back", "type": "Bodyweight"},
     {"name": "Hyperextension", "region": "Back", "type": "Bodyweight"},
@@ -84,6 +88,7 @@ class _ExercisePickerPageState extends State<ExercisePickerPage> {
     {"name": "Single Arm Cable Lateral Raise", "region": "Shoulder", "type": "Cable"},
     {"name": "Front Raise", "region": "Shoulder", "type": "Free"},
     {"name": "Rear Delt Fly", "region": "Shoulder", "type": "Machine"},
+	{"name": "Rear Delt Cable Fly", "region": "Shoulder", "type": "Cable"},
     {"name": "Face Pull", "region": "Shoulder", "type": "Cable"},
     {"name": "Upright Row", "region": "Shoulder", "type": "Free"},
     {"name": "Shrug", "region": "Shoulder", "type": "Free"},
@@ -91,13 +96,16 @@ class _ExercisePickerPageState extends State<ExercisePickerPage> {
     /// ================= ARM (KOL) =================
     {"name": "Barbell Curl", "region": "Arm", "type": "Free"},
     {"name": "Dumbbell Curl", "region": "Arm", "type": "Free"},
+	{"name": "Incline Dumbbell Curl", "region": "Arm", "type": "Free"},
     {"name": "EZ-Bar Curl", "region": "Arm", "type": "Free"},
     {"name": "Hammer Curl", "region": "Arm", "type": "Free"},
     {"name": "Rope Hammer Curl", "region": "Arm", "type": "Cable"},
     {"name": "Cable Curl", "region": "Arm", "type": "Cable"},
     {"name": "Concentration Curl", "region": "Arm", "type": "Free"},
     {"name": "Preacher Curl", "region": "Arm", "type": "Machine"},
+	{"name": "Spider Curl", "region": "Arm", "type": "Free"},
     {"name": "Triceps Pushdown", "region": "Arm", "type": "Cable"},
+	{"name": "Reverse Grip Triceps Pushdown", "region": "Arm", "type": "Cable"},
     {"name": "Rope Pushdown", "region": "Arm", "type": "Cable"},
     {"name": "Overhead Triceps Extension", "region": "Arm", "type": "Free"},
     {"name": "Skull Crusher", "region": "Arm", "type": "Free"},
@@ -114,6 +122,8 @@ class _ExercisePickerPageState extends State<ExercisePickerPage> {
     {"name": "Side Plank", "region": "Core", "type": "Bodyweight"},
     {"name": "Russian Twist", "region": "Core", "type": "Bodyweight"},
     {"name": "Mountain Climber", "region": "Core", "type": "Bodyweight"},
+	{"name": "Dead Bug", "region": "Core", "type": "Bodyweight"},
+    {"name": "Ab Wheel Rollout", "region": "Core", "type": "Free"}
   ];
 
   @override

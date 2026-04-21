@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:audioplayers/audioplayers.dart';
 
+import '../main.dart'; // 🔥 Global audioHandler'a erişim için
 import '../models/workout_model.dart';
 import '../services/isar_service.dart';
 import '../services/app_settings.dart';
@@ -27,8 +27,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Timer? _timer;
   Timer? _saveDebounce;
   
-  // 🔥 1. YÖNTEM: Nesneyi sınıf düzeyinde tanımladık, garbage collector silmez.
-  final AudioPlayer _player = AudioPlayer();
+  // 🔥 ARTIK YEREL PLAYER YOK, SESLERİ audioHandler YÖNETİYOR
 
   int _seconds = 0;
   bool workoutStarted = false;
@@ -62,12 +61,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         _seconds = DateTime.now().difference(widget.workout.date).inSeconds;
       });
 
-      // 🔥 SES TETİKLEME MANTİĞİ BURAYA TAŞINDI (Arka planda da çalışır)
       _checkRestTimers();
     });
   }
 
-  // 🔥 Sesin build içinde değil, saniyelik timer içinde kontrol edilmesi batarya dostudur.
   void _checkRestTimers() {
     final settings = context.read<AppSettings>();
     if (!settings.restSoundEnabled) return;
@@ -76,22 +73,25 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       int duration = _setRestDurations[hash] ?? 60;
       int rem = duration - DateTime.now().difference(startAt).inSeconds;
 
-      // Tam 0. saniyede bir kez çal
+      // Tam 0. saniyede bildirimi ve sesi ateşle
       if (rem == 0) {
-        _playRestSound(settings);
+        _triggerRestNotification(settings);
       }
     });
   }
 
-  Future<void> _playRestSound(AppSettings settings) async {
+  // 🔥 ARKA PLAN VE BİLDİRİM TETİKLEYİCİ
+  Future<void> _triggerRestNotification(AppSettings settings) async {
     try {
+      // Ayarlar sayfasında seçilen ses tipini (beep, bas_lan, oguz_uyan vb.) gönderiyoruz
+      await audioHandler.triggerRestNotification(settings.restSoundType);
+      
+      // Eğer uygulama ön plandaysa ve kullanıcı özel bir dosya seçmişse onu da çalabiliriz
       if (settings.restSoundType == "custom" && settings.customSoundPath.isNotEmpty) {
-        await _player.play(DeviceFileSource(settings.customSoundPath));
-      } else {
-        await _player.play(AssetSource('sounds/${settings.restSoundType}.mp3'));
+        await audioHandler.playCustomSound("custom", customPath: settings.customSoundPath);
       }
     } catch (e) {
-      debugPrint("Ses çalma hatası: $e");
+      debugPrint("Rest bildirimi hatası: $e");
     }
   }
 
@@ -101,6 +101,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       widget.workout.date = DateTime.now();
       _seconds = 0;
     });
+
+    // 🔥 SERVİSİ UYANDIR (Arka planda ölmemesi için)
+    audioHandler.startWorkoutSession();
+
     IsarService.saveWorkout(widget.workout);
     _resumeTimer();
   }
@@ -116,6 +120,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     setState(() {
       set.isCompleted = !set.isCompleted;
       if (set.isCompleted) {
+        // Yeni bir set bitince eskileri temizle (Sadece tek bir rest timer çalışsın)
         _setRestStarts.clear();
         _setRestDurations.clear();
         _isExerciseRest.clear();
@@ -155,8 +160,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     _kgControllers.values.forEach((c) => c.dispose());
     _repControllers.values.forEach((c) => c.dispose());
     _rpeControllers.values.forEach((c) => c.dispose());
-    // 🔥 Belleği temizle
-    _player.dispose();
     super.dispose();
   }
 

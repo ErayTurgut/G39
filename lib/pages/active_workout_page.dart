@@ -26,6 +26,8 @@ class ActiveWorkoutPage extends StatefulWidget {
 class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Timer? _timer;
   Timer? _saveDebounce;
+  
+  // 🔥 1. YÖNTEM: Nesneyi sınıf düzeyinde tanımladık, garbage collector silmez.
   final AudioPlayer _player = AudioPlayer();
 
   int _seconds = 0;
@@ -55,10 +57,42 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     _timer?.cancel();
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _isDisposed) return;
+      
       setState(() {
         _seconds = DateTime.now().difference(widget.workout.date).inSeconds;
       });
+
+      // 🔥 SES TETİKLEME MANTİĞİ BURAYA TAŞINDI (Arka planda da çalışır)
+      _checkRestTimers();
     });
+  }
+
+  // 🔥 Sesin build içinde değil, saniyelik timer içinde kontrol edilmesi batarya dostudur.
+  void _checkRestTimers() {
+    final settings = context.read<AppSettings>();
+    if (!settings.restSoundEnabled) return;
+
+    _setRestStarts.forEach((hash, startAt) {
+      int duration = _setRestDurations[hash] ?? 60;
+      int rem = duration - DateTime.now().difference(startAt).inSeconds;
+
+      // Tam 0. saniyede bir kez çal
+      if (rem == 0) {
+        _playRestSound(settings);
+      }
+    });
+  }
+
+  Future<void> _playRestSound(AppSettings settings) async {
+    try {
+      if (settings.restSoundType == "custom" && settings.customSoundPath.isNotEmpty) {
+        await _player.play(DeviceFileSource(settings.customSoundPath));
+      } else {
+        await _player.play(AssetSource('sounds/${settings.restSoundType}.mp3'));
+      }
+    } catch (e) {
+      debugPrint("Ses çalma hatası: $e");
+    }
   }
 
   void _startWorkout() {
@@ -121,6 +155,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     _kgControllers.values.forEach((c) => c.dispose());
     _repControllers.values.forEach((c) => c.dispose());
     _rpeControllers.values.forEach((c) => c.dispose());
+    // 🔥 Belleği temizle
     _player.dispose();
     super.dispose();
   }
@@ -163,7 +198,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       ),
       body: Column(
         children: [
-          // 🔥 UYARI BARI (KOMPAKT TASARIM)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -217,14 +251,13 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     );
   }
 
-  // 🔥 EKRANA SIĞMASI İÇİN KÜÇÜLTÜLEN KART TASARIMI
   Widget _exerciseCard(Exercise ex) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12), // Önceden 16'ydı
-      padding: const EdgeInsets.all(12), // Önceden 16'ydı
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: const Color(0xFF101826),
-        borderRadius: BorderRadius.circular(20), // Önceden 22'ydi
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white10),
       ),
       child: Column(
@@ -232,7 +265,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         children: [
           Row(
             children: [
-              Expanded(child: Text(ex.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))), // 17'den 15'e düştü
+              Expanded(child: Text(ex.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
               IconButton(
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.delete_sweep_outlined, color: Colors.redAccent, size: 20),
@@ -243,12 +276,12 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
               ),
               IconButton(
                 visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF3B82F6), size: 24), // 28'den 24'e düştü
+                icon: const Icon(Icons.add_circle_outline, color: Color(0xFF3B82F6), size: 24),
                 onPressed: () => setState(() => ex.sets.add(ExerciseSet()..kg = 0..reps = 0)),
               ),
             ],
           ),
-          const Divider(color: Colors.white10, height: 12), // 24'ten 12'ye düştü
+          const Divider(color: Colors.white10, height: 12),
           ...ex.sets.asMap().entries.map((entry) {
             final setIndex = entry.key;
             final set = entry.value;
@@ -258,37 +291,21 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             int rem = 0;
             if (_setRestStarts.containsKey(hash)) {
               rem = (_setRestDurations[hash] ?? 60) - DateTime.now().difference(_setRestStarts[hash]!).inSeconds;
-              if (rem <= 0) {
-                if (rem == 0) {
-                  final settings = context.read<AppSettings>();
-                  if (settings.restSoundEnabled) {
-                    if (settings.restSoundType == "custom" && settings.customSoundPath.isNotEmpty) {
-                      _player.setSource(DeviceFileSource(settings.customSoundPath))
-                             .then((_) => _player.resume())
-                             .catchError((e) => debugPrint("Custom ses hatası: $e"));
-                    } else {
-                      _player.setSource(AssetSource('sounds/${settings.restSoundType}.mp3'))
-                             .then((_) => _player.resume())
-                             .catchError((e) => debugPrint("Asset ses hatası: $e"));
-                    }
-                  }
-                }
-                rem = 0;
-              }
+              if (rem < 0) rem = 0;
             }
 
             return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4), // 8'den 4'e düştü
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
                   GestureDetector(
                     onTap: () => _handleSetToggle(ex, set),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
-                      width: 32, height: 32, // 38x38'den 32x32'ye düştü
+                      width: 32, height: 32,
                       decoration: BoxDecoration(
                         color: set.isCompleted ? (rem > 0 ? Colors.orange : Colors.green) : Colors.white10,
-                        borderRadius: BorderRadius.circular(10), // 12'den 10'a düştü
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: set.isCompleted ? Colors.transparent : Colors.white24),
                       ),
                       child: rem > 0 && set.isCompleted
@@ -305,7 +322,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                   const Spacer(),
                   IconButton(
                     visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.remove_circle_outline, color: Colors.white24, size: 18), // 20'den 18'e düştü
+                    icon: const Icon(Icons.remove_circle_outline, color: Colors.white24, size: 18),
                     onPressed: () => setState(() => ex.sets.remove(set)),
                   ),
                 ],
@@ -317,19 +334,18 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     );
   }
 
-  // 🔥 INPUT ALANLARI KÜÇÜLTÜLDÜ
   Widget _inputField(TextEditingController controller, String hint, Function(String) onChanged) {
     return Container(
-      width: 48, height: 32, // 58x38'den 48x32'ye düştü
+      width: 48, height: 32,
       decoration: BoxDecoration(color: Colors.white.withOpacity(0.05), borderRadius: BorderRadius.circular(8)),
       child: TextField(
         controller: controller,
         textAlign: TextAlign.center,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), // 13'ten 12'ye
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Colors.white24, fontSize: 10), // 11'den 10'a
+          hintStyle: const TextStyle(color: Colors.white24, fontSize: 10),
           border: InputBorder.none,
           isDense: true,
           contentPadding: const EdgeInsets.only(top: 8),

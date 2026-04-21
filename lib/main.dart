@@ -6,9 +6,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audioplayers/audioplayers.dart';
-import 'package:wakelock_plus/wakelock_plus.dart'; // 🔥 Eklendi
+import 'package:wakelock_plus/wakelock_plus.dart';
 
-// Servis ve Sayfalar
+// Kendi servis ve sayfaların (Yolların doğru olduğundan emin ol)
 import 'services/isar_service.dart';
 import 'services/app_settings.dart';
 import 'pages/workout_page.dart';
@@ -22,35 +22,35 @@ Future<void> main() async {
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
-  // 🔥 EKRANI UYANIK TUT (Antrenman sırasında kapanmasın diye)
+  // 🔥 EKRANI UYANIK TUT (Antrenman sırasında kapanmasın)
   WakelockPlus.enable();
 
-  // 🔥 APPLE MUSIC ÇAKIŞMASINI ÖNLEYEN KRİTİK AYAR
+  // 🔥 ARKA PLANDA SES VE BATARYA DOSTU YAPILANDIRMA (3. Yöntem)
+  // Bu ayar, uygulaman arka plana geçse bile işletim sisteminin sesi kesmesini engeller.
   await AudioPlayer.global.setAudioContext(AudioContext(
     iOS: AudioContextIOS(
-      category: AVAudioSessionCategory.ambient, // Diğer müzikleri durdurmaz
+      category: AVAudioSessionCategory.playback, // 'ambient' yerine 'playback' şart
       options: [
-        AVAudioSessionOptions.mixWithOthers, // Apple Music ile sesi karıştırır
-        AVAudioSessionOptions.duckOthers,    // Bip çalarken arkadaki müziği hafif kısar
+        AVAudioSessionOptions.mixWithOthers, // Spotify vs. çalmaya devam edebilir
+        AVAudioSessionOptions.duckOthers,    // Uygulaman ses verince diğerlerini hafif kısar
       ],
     ),
     android: AudioContextAndroid(
-      isContentContentType: AndroidContentType.sonification,
-      usageType: AndroidUsageType.assistanceSonification,
-      audioFocus: AndroidAudioFocus.none,
+      contentType: AndroidContentType.music,
+      usageType: AndroidUsageType.media,
+      audioFocus: AndroidAudioFocus.gain,
     ),
   ));
   
   try {
-    // 2. KRİTİK SIRALAMA: Önce temel servisler
+    // 2. Temel Servislerin Başlatılması
     await Firebase.initializeApp();
     await IsarService.init(); 
     await initializeDateFormatting('tr_TR', null);
 
-    // 3. AppSettings'i oluştur
     final settings = AppSettings();
 
-    // 4. RevenueCat Ayarı
+    // 3. RevenueCat Yapılandırması
     await Purchases.setLogLevel(LogLevel.debug);
     await Purchases.configure(
       PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 

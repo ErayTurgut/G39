@@ -37,7 +37,11 @@
 		<key>NSPhotoLibraryUsageDescription</key>
 		<string>Uygulamaya ses ve medya dosyaları ekleyebilmeniz için galeri erişimine ihtiyaç duyuyoruz.</string>
 		<key>UIApplicationSceneManifest</key>
-		<dict>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>Uygulama ses çalma özellikleri için mikrofon erişimine ihtiyaç duyabilir.</string>
+        <key>NSAppleMusicUsageDescription</key>
+        <string>Antrenman sırasında müzik çalma kontrolleri için medya kütüphanesine erişim gerekebilir.</string>
+        <dict>
 			<key>UIApplicationSupportsMultipleScenes</key>
 			<false/>
 			<key>UISceneConfigurations</key>

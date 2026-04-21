@@ -7,50 +7,68 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:audio_service/audio_service.dart'; // 🔥 Eklendi
 
-// Kendi servis ve sayfaların (Yolların doğru olduğundan emin ol)
+// Servis ve Sayfalar
 import 'services/isar_service.dart';
 import 'services/app_settings.dart';
+import 'services/audio_handler.dart'; // 🔥 Oluşturduğun handler dosyasını import et
 import 'pages/workout_page.dart';
 import 'pages/history_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/login_page.dart'; 
 
+// 🔥 Global handler instance (Sayfalardan erişmek için)
+late MyAudioHandler audioHandler;
+
 Future<void> main() async {
   // 1. Flutter ve Splash Hazırlığı
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
-  // 🔥 EKRANI UYANIK TUT (Antrenman sırasında kapanmasın)
+  // 🔥 EKRANI UYANIK TUT
   WakelockPlus.enable();
 
-  // 🔥 ARKA PLANDA SES VE BATARYA DOSTU YAPILANDIRMA (3. Yöntem)
-  // Bu ayar, uygulaman arka plana geçse bile işletim sisteminin sesi kesmesini engeller.
+  // 🔥 1. ADIM: AUDIO SERVICE BAŞLATMA
+  // Bu kısım işletim sistemine "Ben ses çalacağım, beni arka planda öldürme" der.
+  audioHandler = await AudioService.init(
+    builder: () => MyAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.g39.fitness.audio',
+      androidNotificationChannelName: 'G39 Antrenman Sesleri',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+      notificationColor: Color(0xFF3B82F6),
+    ),
+  );
+
+  // 🔥 2. ADIM: GLOBAL SES YAPILANDIRMASI (Apple Music Dostu)
+  // category: playback + mixWithOthers = Apple Music kesilmez, beraber çalarlar.
   await AudioPlayer.global.setAudioContext(AudioContext(
     iOS: AudioContextIOS(
-      category: AVAudioSessionCategory.playback, // 'ambient' yerine 'playback' şart
+      category: AVAudioSessionCategory.playback, 
       options: [
-        AVAudioSessionOptions.mixWithOthers, // Spotify vs. çalmaya devam edebilir
-        AVAudioSessionOptions.duckOthers,    // Uygulaman ses verince diğerlerini hafif kısar
+        AVAudioSessionOptions.mixWithOthers, 
+        AVAudioSessionOptions.duckOthers, // Bip çalarken arkadaki müziği hafif kısar
       ],
     ),
     android: AudioContextAndroid(
       contentType: AndroidContentType.music,
       usageType: AndroidUsageType.media,
-      audioFocus: AndroidAudioFocus.gain,
+      audioFocus: AndroidAudioFocus.none, // Focus almazsan Spotify/Apple Music durmaz
     ),
   ));
   
   try {
-    // 2. Temel Servislerin Başlatılması
+    // 3. Temel Servisler
     await Firebase.initializeApp();
     await IsarService.init(); 
     await initializeDateFormatting('tr_TR', null);
 
     final settings = AppSettings();
 
-    // 3. RevenueCat Yapılandırması
+    // 4. RevenueCat Ayarı
     await Purchases.setLogLevel(LogLevel.debug);
     await Purchases.configure(
       PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 

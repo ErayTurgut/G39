@@ -7,31 +7,28 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:audio_service/audio_service.dart'; // 🔥 Eklendi
+import 'package:audio_service/audio_service.dart'; 
 
 // Servis ve Sayfalar
 import 'services/isar_service.dart';
 import 'services/app_settings.dart';
-import 'services/audio_handler.dart'; // 🔥 Oluşturduğun handler dosyasını import et
+import 'services/audio_handler.dart'; 
+import 'services/sharing_service.dart'; // 🔥 EKLEME: LinkHandler için import
 import 'pages/workout_page.dart';
 import 'pages/history_page.dart';
 import 'pages/progress_page.dart';
 import 'pages/settings_page.dart';
 import 'pages/login_page.dart'; 
 
-// 🔥 Global handler instance (Sayfalardan erişmek için)
+// Global handler instance
 late MyAudioHandler audioHandler;
 
 Future<void> main() async {
-  // 1. Flutter ve Splash Hazırlığı
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
-  // 🔥 EKRANI UYANIK TUT
   WakelockPlus.enable();
 
-  // 🔥 1. ADIM: AUDIO SERVICE BAŞLATMA
-  // Bu kısım işletim sistemine "Ben ses çalacağım, beni arka planda öldürme" der.
   audioHandler = await AudioService.init(
     builder: () => MyAudioHandler(),
     config: const AudioServiceConfig(
@@ -43,32 +40,28 @@ Future<void> main() async {
     ),
   );
 
-  // 🔥 2. ADIM: GLOBAL SES YAPILANDIRMASI (Apple Music Dostu)
-  // category: playback + mixWithOthers = Apple Music kesilmez, beraber çalarlar.
   await AudioPlayer.global.setAudioContext(AudioContext(
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playback, 
       options: [
         AVAudioSessionOptions.mixWithOthers, 
-        AVAudioSessionOptions.duckOthers, // Bip çalarken arkadaki müziği hafif kısar
+        AVAudioSessionOptions.duckOthers,
       ],
     ),
     android: AudioContextAndroid(
       contentType: AndroidContentType.music,
       usageType: AndroidUsageType.media,
-      audioFocus: AndroidAudioFocus.none, // Focus almazsan Spotify/Apple Music durmaz
+      audioFocus: AndroidAudioFocus.none,
     ),
   ));
   
   try {
-    // 3. Temel Servisler
     await Firebase.initializeApp();
     await IsarService.init(); 
     await initializeDateFormatting('tr_TR', null);
 
     final settings = AppSettings();
 
-    // 4. RevenueCat Ayarı
     await Purchases.setLogLevel(LogLevel.debug);
     await Purchases.configure(
       PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 
@@ -173,6 +166,16 @@ class _MainPageState extends State<MainPage> {
     const ProgressPage(),
     const SettingsPage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 🔥 EKLEME: DEEP LINK DINLEYICIYI BASLAT
+    // WidgetsBinding kullanarak Build tamamlandıktan sonra link kontrolü yapılır.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      LinkHandler.init(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -6,6 +6,7 @@ import 'package:isar/isar.dart';
 import '../models/workout_model.dart';
 import '../services/isar_service.dart';
 import '../services/app_settings.dart';
+import '../services/sharing_service.dart'; // 🔥 EKLEME: Paylaşım servisi eklendi
 import 'workout_detail_page.dart';
 import 'active_workout_page.dart';
 
@@ -193,11 +194,14 @@ class _HistoryPageState extends State<HistoryPage> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               onSelected: (val) {
                                 if (val == 'start') _startExistingWorkout(context, w);
+                                if (val == 'share') WorkoutSharing.shareMyProgram(w); // 🔥 EKLEME: Paylaşım aksiyonu
                                 if (val == 'rename') _renameWorkout(context, w, isDark);
                                 if (val == 'delete') _deleteWorkout(context, w, isDark);
                               },
                               itemBuilder: (_) => [
                                 _buildMenuItem('start', Icons.play_arrow_rounded, "Tekrar Başlat", Colors.greenAccent, isDark),
+                                // 🔥 EKLEME: Tam araya Paylaş eklendi
+                                _buildMenuItem('share', Icons.share_rounded, "Programı Paylaş", Colors.blueAccent, isDark), 
                                 _buildMenuItem('rename', Icons.edit_note_rounded, "İsim Değiştir", isDark ? Colors.white70 : Colors.black54, isDark),
                                 _buildMenuItem('delete', Icons.delete_outline_rounded, "Kaydı Sil", Colors.redAccent, isDark),
                               ],

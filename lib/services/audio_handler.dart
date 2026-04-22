@@ -2,6 +2,8 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
 
 class MyAudioHandler extends BaseAudioHandler {
   final _player = AudioPlayer();
@@ -12,7 +14,10 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 
   Future<void> _initHandler() async {
-    // 1. AudioPlayer Konfigürasyonu (Ducking ve Mixing)
+    // 1. Zaman dilimlerini başlat (Arka plan bildirimi için şart)
+    tz.initializeTimeZones();
+
+    // 2. AudioPlayer Konfigürasyonu (Müziği bastırma ayarları)
     await _player.setAudioContext(AudioContext(
       iOS: AudioContextIOS(
         category: AVAudioSessionCategory.playback,
@@ -28,21 +33,35 @@ class MyAudioHandler extends BaseAudioHandler {
       ),
     ));
 
-    // 2. Bildirim Ayarları (Android Kanalını Oluşturma)
+    // 3. Bildirim Ayarları
     const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings();
+    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
+      requestAlertPermission: true,
+      requestBadgePermission: true,
+      requestSoundPermission: true,
+      requestCriticalPermission: true,
+    );
+    
     const InitializationSettings initializationSettings = InitializationSettings(
       android: initializationSettingsAndroid,
       iOS: initializationSettingsIOS,
     );
+    
     await _localNotificationsPlugin.initialize(initializationSettings);
 
-    // Android için özel bildirim kanalı (Native sesleri kullanabilmesi için)
-    // Önemli: Kanal bir kez oluşturulduktan sonra sesi değişmez, silip tekrar kurmak gerekir.
+    // Android kanalı oluştur (Sesi önceden sisteme kaydeder)
     _createNotificationChannel('default'); 
   }
 
-  // Dinamik bildirim kanalı oluşturucu
+  // 🔥 XCODE'UN İSTEDİĞİ O METOD (BURADA!)
+  void startWorkoutSession() {
+    playbackState.add(playbackState.value.copyWith(
+      controls: [MediaControl.stop],
+      playing: true,
+      processingState: AudioProcessingState.ready,
+    ));
+  }
+
   Future<void> _createNotificationChannel(String soundName) async {
     final androidChannel = AndroidNotificationChannel(
       'workout_timer_channel',
@@ -57,73 +76,57 @@ class MyAudioHandler extends BaseAudioHandler {
         ?.createNotificationChannel(androidChannel);
   }
 
-  // 🔥 ARKA PLANDA BİLDİRİM VE SES TETİKLEME
-  Future<void> triggerRestNotification(String soundType) async {
-    // İsim temizleme: "AIR HORN" -> "air_horn"
+  // 🔥 ARKA PLANDA SESİ TETİKLEYEN ASIL MEVZU
+  Future<void> scheduleRestNotification(int seconds, String soundType) async {
     final String fileName = soundType.toLowerCase().replaceAll(' ', '_');
 
-    final androidDetails = AndroidNotificationDetails(
-      'workout_timer_channel',
-      'Süre Doldu! 👊🏼',
-      channelDescription: 'Antrenman devam ediyor',
-      importance: Importance.max,
-      priority: Priority.high,
-      sound: RawResourceAndroidNotificationSound(fileName), // res/raw içindeki dosya
-      playSound: true,
-    );
+    // Bekleyen bildirimi temizle
+    await _localNotificationsPlugin.cancel(1);
 
-    final iosDetails = DarwinNotificationDetails(
-      presentSound: true,
-      sound: '$fileName.mp3', // Xcode'a eklediğin dosya adı
-    );
-
-    final notificationDetails = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
-    await _localNotificationsPlugin.show(
+    await _localNotificationsPlugin.zonedSchedule(
       1,
       'Süre Doldu! 👊🏼',
       'Hadi moruk, yeni sete başla!',
-      notificationDetails,
+      tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds)),
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'workout_timer_channel',
+          'G39 Dinlenme',
+          importance: Importance.max,
+          priority: Priority.high,
+          sound: RawResourceAndroidNotificationSound(fileName),
+          playSound: true,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentSound: true,
+          sound: '$fileName.mp3', 
+          interruptionLevel: InterruptionLevel.critical,
+        ),
+      ),
+      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
 
-  // 🔥 ÖN PLANDA ÖNİZLEME VEYA SES ÇALMA
+  Future<void> cancelRestNotification() async {
+    await _localNotificationsPlugin.cancel(1);
+  }
+
   Future<void> playCustomSound(String soundType, {String? customPath}) async {
     await _player.stop();
-    
     if (soundType == "custom" && customPath != null) {
       await _player.play(DeviceFileSource(customPath));
     } else {
       final String fileName = soundType.toLowerCase().replaceAll(' ', '_');
       await _player.play(AssetSource('sounds/$fileName.mp3'), mode: PlayerMode.lowLatency);
     }
-
-    playbackState.add(playbackState.value.copyWith(
-      playing: true,
-      processingState: AudioProcessingState.ready,
-    ));
-  }
-
-  @override
-  Future<void> play() async {
-    // Varsayılan bip sesi için (Geriye dönük uyumluluk)
-    await playCustomSound('beep');
-  }
-
-  void startWorkoutSession() {
-    playbackState.add(playbackState.value.copyWith(
-      controls: [MediaControl.stop],
-      playing: true,
-      processingState: AudioProcessingState.ready,
-    ));
   }
 
   @override
   Future<void> stop() async {
     await _player.stop();
+    await cancelRestNotification();
     playbackState.add(playbackState.value.copyWith(
       playing: false,
       processingState: AudioProcessingState.idle,

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../main.dart'; // 🔥 Global audioHandler'a erişim için
+import '../main.dart'; // 🔥 Global audioHandler'a erişim
 import '../models/workout_model.dart';
 import '../services/isar_service.dart';
 import '../services/app_settings.dart';
@@ -27,8 +27,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Timer? _timer;
   Timer? _saveDebounce;
   
-  // 🔥 ARTIK YEREL PLAYER YOK, SESLERİ audioHandler YÖNETİYOR
-
   int _seconds = 0;
   bool workoutStarted = false;
   bool _isDisposed = false;
@@ -60,39 +58,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       setState(() {
         _seconds = DateTime.now().difference(widget.workout.date).inSeconds;
       });
-
-      _checkRestTimers();
+      // Not: Artık burada _checkRestTimers() gibi bir hamallık yok.
+      // Bildirimi ve sesi iOS/Android kendi takip ediyor.
     });
-  }
-
-  void _checkRestTimers() {
-    final settings = context.read<AppSettings>();
-    if (!settings.restSoundEnabled) return;
-
-    _setRestStarts.forEach((hash, startAt) {
-      int duration = _setRestDurations[hash] ?? 60;
-      int rem = duration - DateTime.now().difference(startAt).inSeconds;
-
-      // Tam 0. saniyede bildirimi ve sesi ateşle
-      if (rem == 0) {
-        _triggerRestNotification(settings);
-      }
-    });
-  }
-
-  // 🔥 ARKA PLAN VE BİLDİRİM TETİKLEYİCİ
-  Future<void> _triggerRestNotification(AppSettings settings) async {
-    try {
-      // Ayarlar sayfasında seçilen ses tipini (beep, bas_lan, oguz_uyan vb.) gönderiyoruz
-      await audioHandler.triggerRestNotification(settings.restSoundType);
-      
-      // Eğer uygulama ön plandaysa ve kullanıcı özel bir dosya seçmişse onu da çalabiliriz
-      if (settings.restSoundType == "custom" && settings.customSoundPath.isNotEmpty) {
-        await audioHandler.playCustomSound("custom", customPath: settings.customSoundPath);
-      }
-    } catch (e) {
-      debugPrint("Rest bildirimi hatası: $e");
-    }
   }
 
   void _startWorkout() {
@@ -102,15 +70,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       _seconds = 0;
     });
 
-    // 🔥 SERVİSİ UYANDIR (Arka planda ölmemesi için)
     audioHandler.startWorkoutSession();
-
     IsarService.saveWorkout(widget.workout);
     _resumeTimer();
-  }
-
-  int _getSetHash(Exercise ex, ExerciseSet s) {
-    return Object.hash(ex.name, widget.workout.exercises.indexOf(ex), ex.sets.indexOf(s));
   }
 
   void _handleSetToggle(Exercise ex, ExerciseSet set) {
@@ -120,24 +82,38 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     setState(() {
       set.isCompleted = !set.isCompleted;
       if (set.isCompleted) {
-        // Yeni bir set bitince eskileri temizle (Sadece tek bir rest timer çalışsın)
+        // Yeni bir set bitince diğerlerini temizle (sadece tek bir rest timer görünsün)
         _setRestStarts.clear();
         _setRestDurations.clear();
         _isExerciseRest.clear();
         
         _setRestStarts[setHash] = DateTime.now();
         bool allSetsDone = ex.sets.every((s) => s.isCompleted);
+        int duration = allSetsDone ? settings.exerciseRestSeconds : settings.restSeconds;
         
-        _setRestDurations[setHash] = allSetsDone ? settings.exerciseRestSeconds : settings.restSeconds;
+        _setRestDurations[setHash] = duration;
         _isExerciseRest[setHash] = allSetsDone;
+
+        // 🔥 İŞTE KRİTİK NOKTA: iOS'un kendi sistemine zamanlanmış görev veriyoruz.
+        // Uygulamayı kapatsan bile bu süre sonunda ses patlayacak.
+        if (settings.restSoundEnabled) {
+          audioHandler.scheduleRestNotification(duration, settings.restSoundType);
+        }
         
       } else {
+        // Eğer yanlışlıkla tıklandıysa ve geri alınırsa bekleyen bildirimi iptal et
+        audioHandler.cancelRestNotification();
+        
         _setRestStarts.remove(setHash);
         _setRestDurations.remove(setHash);
         _isExerciseRest.remove(setHash);
       }
     });
     _debouncedSave();
+  }
+
+  int _getSetHash(Exercise ex, ExerciseSet s) {
+    return Object.hash(ex.name, widget.workout.exercises.indexOf(ex), ex.sets.indexOf(s));
   }
 
   TextEditingController _getController(Map<String, TextEditingController> map, String key, String initialValue) {
@@ -201,24 +177,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            color: Colors.white.withOpacity(0.02),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline_rounded, color: Colors.white38, size: 16),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    "İşaretlenmeyen setler gelişim grafiğinde görünmeyecektir.",
-                    style: TextStyle(color: Colors.white54, fontSize: 11),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
           if (activeRestRemaining > 0)
             Container(
               width: double.infinity,
@@ -237,14 +195,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ],
               ),
             ),
-            
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 130),
               itemCount: widget.workout.exercises.length,
-              itemBuilder: (context, index) {
-                return _exerciseCard(widget.workout.exercises[index]);
-              },
+              itemBuilder: (context, index) => _exerciseCard(widget.workout.exercises[index]),
             ),
           ),
         ],

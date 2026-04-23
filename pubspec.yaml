@@ -39,6 +39,7 @@ dependencies:
   # 🔥 PAYLAŞIM VE DEEP LINK PAKETLERİ (YENİ EKLENENLER)
   share_plus: ^10.1.0    # Antrenörün linki paylaşması için
   app_links: ^6.3.2      # g39:// linklerini yakalayıp uygulamayı açmak için
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

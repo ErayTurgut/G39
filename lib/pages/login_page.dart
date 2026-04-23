@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:sign_in_with_apple/sign_in_with_apple.dart'; // 1. BU EKLENDİ
+import 'package:sign_in_with_apple/sign_in_with_apple.dart'; 
+import 'package:url_launcher/url_launcher.dart';
 import '../services/isar_service.dart';
 
 class LoginPage extends StatelessWidget {
@@ -54,16 +55,13 @@ class LoginPage extends StatelessWidget {
 
               const SizedBox(height: 15),
 
-              // APPLE LOGIN - GERÇEK KOD BURADA
-              _buildAuthButton(
-                context: context,
-                text: "Apple ID ile Giriş Yap",
-                icon: Icons.apple,
-                color: Colors.black,
-                textColor: Colors.white,
-                onTap: () async {
+              // APPLE LOGIN - RESMİ APPLE BUTONU
+              SignInWithAppleButton(
+                text: "Apple ile Giriş Yap", 
+                height: 50,
+                borderRadius: BorderRadius.circular(15),
+                onPressed: () async {
                   try {
-                    // Apple'dan kimlik bilgilerini istiyoruz
                     final appleCredential = await SignInWithApple.getAppleIDCredential(
                       scopes: [
                         AppleIDAuthorizationScopes.email,
@@ -71,7 +69,6 @@ class LoginPage extends StatelessWidget {
                       ],
                     );
 
-                    // Firebase'e bağlama işlemi
                     final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
                     final AuthCredential credential = oAuthProvider.credential(
                       idToken: appleCredential.identityToken,
@@ -92,6 +89,26 @@ class LoginPage extends StatelessWidget {
                   }
                 },
               ),
+              
+              const SizedBox(height: 25),
+              
+              // GİZLİLİK POLİTİKASI LİNKİ
+              TextButton(
+                onPressed: () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/g39pro/ana-sayfa'); 
+                  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                    debugPrint('Hata: Link açılamadı $url');
+                  }
+                },
+                child: const Text(
+                  "Gizlilik Politikası ve Kullanım Şartları",
+                  style: TextStyle(
+                    color: Colors.grey, 
+                    fontSize: 12,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -99,6 +116,7 @@ class LoginPage extends StatelessWidget {
     );
   }
 
+  // Google Butonu için yardımcı widget
   Widget _buildAuthButton({
     required BuildContext context,
     required String text,

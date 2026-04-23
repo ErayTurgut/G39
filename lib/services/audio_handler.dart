@@ -89,8 +89,8 @@ class MyAudioHandler extends BaseAudioHandler {
     try {
       await _localNotificationsPlugin.zonedSchedule(
         1,
-        'Süre Doldu! 👊🏼',
-        'Hadi moruk, yeni sete başla!',
+        'Vakit Geldi! 👊🏼',
+        'Odaklan!',
         tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds)),
         NotificationDetails(
           android: AndroidNotificationDetails(

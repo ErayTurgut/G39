@@ -4,6 +4,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:flutter/material.dart';
 
 class MyAudioHandler extends BaseAudioHandler {
   final _player = AudioPlayer();
@@ -14,46 +15,40 @@ class MyAudioHandler extends BaseAudioHandler {
   }
 
   Future<void> _initHandler() async {
-    // 1. Zaman dilimlerini başlat (Arka plan bildirimi için şart)
     tz.initializeTimeZones();
 
-    // 2. AudioPlayer Konfigürasyonu (Müziği bastırma ayarları)
     await _player.setAudioContext(AudioContext(
       iOS: AudioContextIOS(
         category: AVAudioSessionCategory.playback,
-        options: [
-          AVAudioSessionOptions.mixWithOthers,
-          AVAudioSessionOptions.duckOthers,
-        ],
+        options: [AVAudioSessionOptions.mixWithOthers, AVAudioSessionOptions.duckOthers],
       ),
       android: AudioContextAndroid(
         contentType: AndroidContentType.music,
         usageType: AndroidUsageType.media,
-        audioFocus: AndroidAudioFocus.none,
+        audioFocus: AndroidAudioFocus.gain, 
       ),
     ));
 
-    // 3. Bildirim Ayarları
-    const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const DarwinInitializationSettings initializationSettingsIOS = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-      requestCriticalPermission: true,
-    );
-    
-    const InitializationSettings initializationSettings = InitializationSettings(
-      android: initializationSettingsAndroid,
-      iOS: initializationSettingsIOS,
+    const initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: true,
+        requestBadgePermission: true,
+        requestSoundPermission: true,
+      ),
     );
     
     await _localNotificationsPlugin.initialize(initializationSettings);
 
-    // Android kanalı oluştur (Sesi önceden sisteme kaydeder)
-    _createNotificationChannel('default'); 
+    // 🔥 İzin Penceresini Çıkartır
+    final androidImplementation = _localNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+        
+    if (androidImplementation != null) {
+      await androidImplementation.requestNotificationsPermission();
+    }
   }
 
-  // 🔥 XCODE'UN İSTEDİĞİ O METOD (BURADA!)
   void startWorkoutSession() {
     playbackState.add(playbackState.value.copyWith(
       controls: [MediaControl.stop],
@@ -62,13 +57,19 @@ class MyAudioHandler extends BaseAudioHandler {
     ));
   }
 
-  Future<void> _createNotificationChannel(String soundName) async {
+  Future<void> cancelRestNotification() async {
+    await _localNotificationsPlugin.cancel(1);
+  }
+
+  Future<void> _ensureChannelExists(String soundName) async {
+    final channelId = 'g39_channel_$soundName'; 
+    
     final androidChannel = AndroidNotificationChannel(
-      'workout_timer_channel',
-      'G39 Antrenman Sayaçları',
+      channelId,
+      'G39 Antrenman ($soundName)',
       importance: Importance.max,
       playSound: true,
-      sound: RawResourceAndroidNotificationSound(soundName == 'default' ? 'beep' : soundName),
+      sound: RawResourceAndroidNotificationSound(soundName),
     );
 
     await _localNotificationsPlugin
@@ -76,61 +77,64 @@ class MyAudioHandler extends BaseAudioHandler {
         ?.createNotificationChannel(androidChannel);
   }
 
-  // 🔥 ARKA PLANDA SESİ TETİKLEYEN ASIL MEVZU
   Future<void> scheduleRestNotification(int seconds, String soundType) async {
     final String fileName = soundType.toLowerCase().replaceAll(' ', '_');
+    final String channelId = 'g39_channel_$fileName'; 
 
-    // Bekleyen bildirimi temizle
-    await _localNotificationsPlugin.cancel(1);
+    await _ensureChannelExists(fileName);
+    await cancelRestNotification(); 
 
-    await _localNotificationsPlugin.zonedSchedule(
-      1,
-      'Süre Doldu! 👊🏼',
-      'Hadi moruk, yeni sete başla!',
-      tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds)),
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          'workout_timer_channel',
-          'G39 Dinlenme',
-          importance: Importance.max,
-          priority: Priority.high,
-          sound: RawResourceAndroidNotificationSound(fileName),
-          playSound: true,
+    debugPrint("🔔 [G39] Bildirim kuruluyor. Kanal: $channelId, Ses: $fileName, Süre: $seconds");
+
+    try {
+      await _localNotificationsPlugin.zonedSchedule(
+        1,
+        'Süre Doldu! 👊🏼',
+        'Hadi moruk, yeni sete başla!',
+        tz.TZDateTime.now(tz.local).add(Duration(seconds: seconds)),
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            channelId, 
+            'G39 Dinlenme',
+            importance: Importance.max,
+            priority: Priority.high,
+            sound: RawResourceAndroidNotificationSound(fileName), // Android için uzantısız
+            playSound: true,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentSound: true,
+            sound: '$fileName.mp3', // iOS için uzantılı
+          ),
         ),
-        iOS: DarwinNotificationDetails(
-          presentAlert: true,
-          presentSound: true,
-          sound: '$fileName.mp3', 
-          interruptionLevel: InterruptionLevel.critical,
-        ),
-      ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
-    );
-  }
-
-  Future<void> cancelRestNotification() async {
-    await _localNotificationsPlugin.cancel(1);
+        // 🔥 İŞTE BURASI DÜZELDİ: Artık gecikme yok, saniyesi saniyesine (exact) patlayacak!
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+      );
+    } catch (e) {
+      debugPrint("❌ [G39] Bildirim hatası: $e");
+    }
   }
 
   Future<void> playCustomSound(String soundType, {String? customPath}) async {
-    await _player.stop();
-    if (soundType == "custom" && customPath != null) {
-      await _player.play(DeviceFileSource(customPath));
-    } else {
-      final String fileName = soundType.toLowerCase().replaceAll(' ', '_');
-      await _player.play(AssetSource('sounds/$fileName.mp3'), mode: PlayerMode.lowLatency);
+    try {
+      await _player.stop();
+      if (soundType == "custom" && customPath != null) {
+        await _player.play(DeviceFileSource(customPath));
+      } else {
+        final String fileName = soundType.toLowerCase().replaceAll(' ', '_');
+        await _player.play(AssetSource('sounds/$fileName.mp3'));
+      }
+    } catch (e) {
+      debugPrint("❌ [G39] Ses çalma hatası: $e");
     }
   }
 
   @override
   Future<void> stop() async {
     await _player.stop();
-    await cancelRestNotification();
-    playbackState.add(playbackState.value.copyWith(
-      playing: false,
-      processingState: AudioProcessingState.idle,
-    ));
+    await cancelRestNotification(); 
+    playbackState.add(playbackState.value.copyWith(playing: false, processingState: AudioProcessingState.idle));
     return super.stop();
   }
 }

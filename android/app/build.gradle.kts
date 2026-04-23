@@ -21,6 +21,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // 🔥 DESUGARING AKTİF EDİLDİ: Bildirim ve modern paketlerin Java 8+ desteği için şart
+        isCoreLibraryDesugaringEnabled = true 
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -53,13 +55,11 @@ android {
 
     buildTypes {
         release {
-            // Uygulama boyutunu küçültmek ve güvenliği artırmak için
             isMinifyEnabled = true
             isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
         }
         debug {
-            // Google Login bazen debug sertifikasıyla sorun çıkarırsa burayı kontrol ederiz
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -70,6 +70,9 @@ flutter {
 }
 
 dependencies {
+    // 🔥 DESUGARING KÜTÜPHANESİ: Kırmızı hatayı silecek olan asıl satır budur
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
+
     // 🔥 G39 FIREBASE & GOOGLE AUTH STACK
     implementation(platform("com.google.firebase:firebase-bom:33.1.0"))
     implementation("com.google.firebase:firebase-auth")

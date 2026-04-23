@@ -7,13 +7,14 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
-import 'package:audio_service/audio_service.dart'; 
+import 'package:audio_service/audio_service.dart';
+import 'dart:io';
 
 // Servis ve Sayfalar
 import 'services/isar_service.dart';
 import 'services/app_settings.dart';
-import 'services/audio_handler.dart'; 
-import 'services/sharing_service.dart'; // 🔥 EKLEME: LinkHandler için import
+import 'services/audio_handler.dart';
+import 'services/sharing_service.dart'; 
 import 'pages/workout_page.dart';
 import 'pages/history_page.dart';
 import 'pages/progress_page.dart';
@@ -24,57 +25,71 @@ import 'pages/login_page.dart';
 late MyAudioHandler audioHandler;
 
 Future<void> main() async {
+  print("🚀 [G39] Uygulama başlatma süreci başladı...");
+  
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
+  print("📱 [G39] Wakelock aktif ediliyor...");
   WakelockPlus.enable();
 
-  audioHandler = await AudioService.init(
-    builder: () => MyAudioHandler(),
-    config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.g39.fitness.audio',
-      androidNotificationChannelName: 'G39 Antrenman Sesleri',
-      androidNotificationOngoing: true,
-      androidStopForegroundOnPause: true,
-      notificationColor: Color(0xFF3B82F6),
-    ),
-  );
-
-  await AudioPlayer.global.setAudioContext(AudioContext(
-    iOS: AudioContextIOS(
-      category: AVAudioSessionCategory.playback, 
-      options: [
-        AVAudioSessionOptions.mixWithOthers, 
-        AVAudioSessionOptions.duckOthers,
-      ],
-    ),
-    android: AudioContextAndroid(
-      contentType: AndroidContentType.music,
-      usageType: AndroidUsageType.media,
-      audioFocus: AndroidAudioFocus.none,
-    ),
-  ));
-  
   try {
+    print("🎙️ [G39] Audio Service başlatılıyor...");
+    audioHandler = await AudioService.init(
+      builder: () => MyAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.g39.fitness.audio',
+        androidNotificationChannelName: 'G39 Antrenman Sesleri',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+        notificationColor: Color(0xFF3B82F6),
+      ),
+    );
+
+    print("🔊 [G39] Global Audio Context ayarlanıyor (Sounds Klasörü Aktif)...");
+    await AudioPlayer.global.setAudioContext(AudioContext(
+      iOS: AudioContextIOS(
+        category: AVAudioSessionCategory.playback, 
+        options: [
+          AVAudioSessionOptions.mixWithOthers, 
+          AVAudioSessionOptions.duckOthers,
+        ],
+      ),
+      android: AudioContextAndroid(
+        // 🔥 isContentType hatası yok. Doğrusu 'contentType'dır.
+        contentType: AndroidContentType.music, 
+        usageType: AndroidUsageType.media,
+        audioFocus: AndroidAudioFocus.gain, 
+      ),
+    ));
+    
+    print("🔥 [G39] Firebase başlatılıyor...");
     await Firebase.initializeApp();
+    
+    print("📦 [G39] Isar başlatılıyor...");
     await IsarService.init(); 
+    
+    print("📅 [G39] Yerelleştirme ayarları...");
     await initializeDateFormatting('tr_TR', null);
 
+    print("💰 [G39] RevenueCat yapılandırılıyor...");
     final settings = AppSettings();
-
     await Purchases.setLogLevel(LogLevel.debug);
     await Purchases.configure(
       PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 
     );
 
+    print("✅ [G39] Tüm servisler hazır, runApp çağrılıyor.");
     runApp(
       ChangeNotifierProvider<AppSettings>.value(
         value: settings,
         child: const FitnessApp(),
       ),
     );
-  } catch (e) {
-    debugPrint("G39 Kritik Başlatma Hatası: $e");
+  } catch (e, stack) {
+    print("❌ [G39] KRİTİK BAŞLATMA HATASI: $e");
+    print("❌ [G39] STACK TRACE: $stack");
+    
     runApp(
       ChangeNotifierProvider(
         create: (_) => AppSettings(),
@@ -134,17 +149,26 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.waiting) {
+          print("✨ [G39] Auth durumu belirlendi, Splash kaldırılıyor.");
           FlutterNativeSplash.remove();
         }
 
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             backgroundColor: Color(0xFF050816),
-            body: Center(child: CircularProgressIndicator(color: Color(0xFF3B82F6))),
+            body: Center(
+              child: CircularProgressIndicator(
+                color: Color(0xFF3B82F6),
+              ),
+            ),
           );
         }
 
-        return snapshot.hasData ? const MainPage() : const LoginPage();
+        if (snapshot.hasData) {
+          return const MainPage();
+        } else {
+          return const LoginPage();
+        }
       },
     );
   }
@@ -170,9 +194,9 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
-    // 🔥 EKLEME: DEEP LINK DINLEYICIYI BASLAT
-    // WidgetsBinding kullanarak Build tamamlandıktan sonra link kontrolü yapılır.
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      print("🔗 [G39] LinkHandler (Deep Link) başlatılıyor...");
       LinkHandler.init(context);
     });
   }
@@ -184,7 +208,7 @@ class _MainPageState extends State<MainPage> {
     return Scaffold(
       body: IndexedStack(
         index: currentIndex, 
-        children: pages
+        children: pages,
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: currentIndex,
@@ -193,12 +217,28 @@ class _MainPageState extends State<MainPage> {
         backgroundColor: isDark ? const Color(0xFF101826) : Colors.white,
         selectedItemColor: const Color(0xFF3B82F6),
         unselectedItemColor: isDark ? Colors.white38 : Colors.black38,
-        onTap: (index) => setState(() => currentIndex = index),
+        onTap: (index) {
+          setState(() {
+            currentIndex = index;
+          });
+        },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: "Antrenman"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Geçmiş"),
-          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Gelişim"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profil"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.fitness_center), 
+            label: "Antrenman",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.history), 
+            label: "Geçmiş",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.show_chart), 
+            label: "Gelişim",
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person), 
+            label: "Profil",
+          ),
         ],
       ),
     );

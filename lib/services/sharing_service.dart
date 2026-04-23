@@ -66,7 +66,8 @@ class LinkHandler {
   /// Uygulama başlangıcında link dinlemeyi başlatır
   static void init(BuildContext context) {
     // 1. Uygulama kapalıyken linkle açılırsa
-    _appLinks.getInitialAppLink().then((uri) {
+    // 🔥 DÜZELTİLDİ: getInitialAppLink() ismi getInitialLink() olarak güncellendi.
+    _appLinks.getInitialLink().then((uri) {
       if (uri != null) _handleLink(context, uri);
     });
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart'; // 🔥 EKLENDİ
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -46,7 +47,7 @@ Future<void> main() async {
       ),
     );
 
-    print("🔊 [G39] Global Audio Context ayarlanıyor (Sounds Klasörü Aktif)...");
+    print("🔊 [G39] Global Audio Context ayarlanıyor...");
     await AudioPlayer.global.setAudioContext(AudioContext(
       iOS: AudioContextIOS(
         category: AVAudioSessionCategory.playback, 
@@ -56,7 +57,6 @@ Future<void> main() async {
         ],
       ),
       android: AudioContextAndroid(
-        // 🔥 isContentType hatası yok. Doğrusu 'contentType'dır.
         contentType: AndroidContentType.music, 
         usageType: AndroidUsageType.media,
         audioFocus: AndroidAudioFocus.gain, 
@@ -65,6 +65,22 @@ Future<void> main() async {
     
     print("🔥 [G39] Firebase başlatılıyor...");
     await Firebase.initializeApp();
+
+    // 🔥 APPLE BİLDİRİM İZNİ: Sadece iOS'ta çalışır, Android'i bozmaz.
+    if (Platform.isIOS) {
+      print("🔔 [G39] Apple için bildirim izinleri isteniyor...");
+      FirebaseMessaging messaging = FirebaseMessaging.instance;
+      NotificationSettings settings = await messaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      print('✅ [G39] Apple İzin Durumu: ${settings.authorizationStatus}');
+    }
     
     print("📦 [G39] Isar başlatılıyor...");
     await IsarService.init(); 

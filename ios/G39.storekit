@@ -1,0 +1,159 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "35F1ABBE",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "6761786034",
+      "localizations" : [
+        {
+          "description" : "Geçişler ve süre uyarıları için sesli bildirimler",
+          "displayName" : "G39: Antrenman Ses Paketi",
+          "locale" : "tr"
+        }
+      ],
+      "productID" : "g39_beep_lifetime",
+      "referenceName" : "g39_beep_lifetime",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6761716389",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "B334W37TC5",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 799188054.27602506,
+    "_locale" : "en_US",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "22020319",
+      "localizations" : [
+        {
+          "description" : "",
+          "displayName" : "G39 Premium Planları",
+          "locale" : "tr"
+        }
+      ],
+      "name" : "Pro Fitness Plan",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "1.99",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "6761785050",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "6 Aylık Pro",
+              "displayName" : "6 Aylık Pro",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "g39_6_aylik_premium",
+          "recurringSubscriptionPeriod" : "P6M",
+          "referenceName" : "6 Aylık Premium",
+          "subscriptionGroupID" : "22020319",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "2.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6761785019",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "Grafik ve Seslere Sınırsız Erişim",
+              "displayName" : "Aylık Pro Paket",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "g39_aylik_premium",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Aylık Premium",
+          "subscriptionGroupID" : "22020319",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "0.99",
+          "familyShareable" : false,
+          "groupNumber" : 3,
+          "internalID" : "6761784994",
+          "introductoryOffers" : [
+
+          ],
+          "localizations" : [
+            {
+              "description" : "Yıllık Pro",
+              "displayName" : "Yıllık Pro",
+              "locale" : "tr"
+            }
+          ],
+          "productID" : "g39_12_aylik_premium",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Yıllık Premium",
+          "subscriptionGroupID" : "22020319",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 5,
+    "minor" : 0
+  }
+}

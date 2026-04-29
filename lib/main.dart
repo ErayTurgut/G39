@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_messaging/firebase_messaging.dart'; // 🔥 EKLENDİ
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -11,11 +11,13 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:audio_service/audio_service.dart';
 import 'dart:io';
 
-// Servis ve Sayfalar
+// Kendi servis ve sayfalarını buradan kontrol et, yolların doğru olduğundan emin ol
 import 'services/isar_service.dart';
 import 'services/app_settings.dart';
 import 'services/audio_handler.dart';
-import 'services/sharing_service.dart'; 
+// Eğer bu dosya yoksa veya adı farklıysa hata verebilir, kontrol et:
+// import 'services/sharing_service.dart'; 
+
 import 'pages/workout_page.dart';
 import 'pages/history_page.dart';
 import 'pages/progress_page.dart';
@@ -66,11 +68,10 @@ Future<void> main() async {
     print("🔥 [G39] Firebase başlatılıyor...");
     await Firebase.initializeApp();
 
-    // 🔥 APPLE BİLDİRİM İZNİ: Sadece iOS'ta çalışır, Android'i bozmaz.
     if (Platform.isIOS) {
       print("🔔 [G39] Apple için bildirim izinleri isteniyor...");
       FirebaseMessaging messaging = FirebaseMessaging.instance;
-      NotificationSettings settings = await messaging.requestPermission(
+      await messaging.requestPermission(
         alert: true,
         announcement: false,
         badge: true,
@@ -79,7 +80,6 @@ Future<void> main() async {
         provisional: false,
         sound: true,
       );
-      print('✅ [G39] Apple İzin Durumu: ${settings.authorizationStatus}');
     }
     
     print("📦 [G39] Isar başlatılıyor...");
@@ -91,9 +91,19 @@ Future<void> main() async {
     print("💰 [G39] RevenueCat yapılandırılıyor...");
     final settings = AppSettings();
     await Purchases.setLogLevel(LogLevel.debug);
-    await Purchases.configure(
-      PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 
-    );
+
+    // 🔥 KRİTİK DÜZELTME: Platforma göre doğru anahtarı basıyoruz
+    if (Platform.isIOS) {
+      await Purchases.configure(
+        PurchasesConfiguration("appl_ESoHBWjHwNpjadqDUeKgVfjsxGU"), 
+      );
+      print("🍏 [G39] iOS API Key aktif edildi.");
+    } else {
+      await Purchases.configure(
+        PurchasesConfiguration("goog_HnrwUHbcPDHQFuFFWOEECCQGlQa"), 
+      );
+      print("🤖 [G39] Android API Key aktif edildi.");
+    }
 
     print("✅ [G39] Tüm servisler hazır, runApp çağrılıyor.");
     runApp(
@@ -165,7 +175,6 @@ class AuthWrapper extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.waiting) {
-          print("✨ [G39] Auth durumu belirlendi, Splash kaldırılıyor.");
           FlutterNativeSplash.remove();
         }
 
@@ -173,9 +182,7 @@ class AuthWrapper extends StatelessWidget {
           return const Scaffold(
             backgroundColor: Color(0xFF050816),
             body: Center(
-              child: CircularProgressIndicator(
-                color: Color(0xFF3B82F6),
-              ),
+              child: CircularProgressIndicator(color: Color(0xFF3B82F6)),
             ),
           );
         }
@@ -208,16 +215,6 @@ class _MainPageState extends State<MainPage> {
   ];
 
   @override
-  void initState() {
-    super.initState();
-    
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      print("🔗 [G39] LinkHandler (Deep Link) başlatılıyor...");
-      LinkHandler.init(context);
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final bool isDark = context.watch<AppSettings>().darkMode;
 
@@ -239,22 +236,10 @@ class _MainPageState extends State<MainPage> {
           });
         },
         items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.fitness_center), 
-            label: "Antrenman",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history), 
-            label: "Geçmiş",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.show_chart), 
-            label: "Gelişim",
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person), 
-            label: "Profil",
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.fitness_center), label: "Antrenman"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "Geçmiş"),
+          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Gelişim"),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profil"),
         ],
       ),
     );

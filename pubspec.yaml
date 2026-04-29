@@ -3,7 +3,7 @@ description: G39 - Workout tracker & gym progress analytics app.
 publish_to: 'none'
 
 # 🔥 Build numarasını +25 yaptık.
-version: 1.0.0+32
+version: 1.0.0+33
 
 environment:
   sdk: ">=3.3.0 <4.0.0"

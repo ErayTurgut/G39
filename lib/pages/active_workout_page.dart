@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../main.dart'; // 🔥 Global audioHandler'a erişim
+import '../main.dart'; 
 import '../models/workout_model.dart';
 import '../services/isar_service.dart';
 import '../services/app_settings.dart';
@@ -27,7 +27,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
   Timer? _timer;
   Timer? _saveDebounce;
   
-  int _seconds = 0;
+  // 🔥 PERFORMANS İLACI: Sayfayı değil, sadece bu değeri dinleyenleri tetikler
+  final ValueNotifier<int> _tickNotifier = ValueNotifier<int>(0);
+  
   bool workoutStarted = false;
   bool _isDisposed = false;
 
@@ -55,11 +57,9 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _isDisposed) return;
       
-      setState(() {
-        _seconds = DateTime.now().difference(widget.workout.date).inSeconds;
-      });
-      // Not: Artık burada _checkRestTimers() gibi bir hamallık yok.
-      // Bildirimi ve sesi iOS/Android kendi takip ediyor.
+      // 🔥 DİKKAT: setState KALDIRILDI! 
+      // Sadece saati dinleyen widget'lara "1 saniye geçti" haberi veriyoruz.
+      _tickNotifier.value++; 
     });
   }
 
@@ -67,7 +67,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     setState(() {
       workoutStarted = true;
       widget.workout.date = DateTime.now();
-      _seconds = 0;
     });
 
     audioHandler.startWorkoutSession();
@@ -79,10 +78,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     final settings = context.read<AppSettings>();
     final setHash = _getSetHash(ex, set);
 
+    // Buradaki setState kalabilir çünkü saniyede bir değil, sadece butona basınca çalışır.
     setState(() {
       set.isCompleted = !set.isCompleted;
       if (set.isCompleted) {
-        // Yeni bir set bitince diğerlerini temizle (sadece tek bir rest timer görünsün)
         _setRestStarts.clear();
         _setRestDurations.clear();
         _isExerciseRest.clear();
@@ -94,16 +93,11 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
         _setRestDurations[setHash] = duration;
         _isExerciseRest[setHash] = allSetsDone;
 
-        // 🔥 İŞTE KRİTİK NOKTA: iOS'un kendi sistemine zamanlanmış görev veriyoruz.
-        // Uygulamayı kapatsan bile bu süre sonunda ses patlayacak.
         if (settings.restSoundEnabled) {
           audioHandler.scheduleRestNotification(duration, settings.restSoundType);
         }
-        
       } else {
-        // Eğer yanlışlıkla tıklandıysa ve geri alınırsa bekleyen bildirimi iptal et
         audioHandler.cancelRestNotification();
-        
         _setRestStarts.remove(setHash);
         _setRestDurations.remove(setHash);
         _isExerciseRest.remove(setHash);
@@ -133,6 +127,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
     _isDisposed = true;
     _timer?.cancel();
     _saveDebounce?.cancel();
+    _tickNotifier.dispose(); // 🔥 Hafızadan temizle
     _kgControllers.values.forEach((c) => c.dispose());
     _repControllers.values.forEach((c) => c.dispose());
     _rpeControllers.values.forEach((c) => c.dispose());
@@ -141,19 +136,6 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
 
   @override
   Widget build(BuildContext context) {
-    int activeRestRemaining = 0;
-    String restLabel = "SET ARASI";
-
-    _setRestStarts.forEach((hash, startAt) {
-      int duration = _setRestDurations[hash] ?? 60;
-      int rem = duration - DateTime.now().difference(startAt).inSeconds;
-      if (rem > activeRestRemaining) {
-        activeRestRemaining = rem;
-        bool isExercise = _isExerciseRest[hash] ?? false;
-        restLabel = isExercise ? "HAREKET ARASI" : "SET ARASI";
-      }
-    });
-
     return Scaffold(
       backgroundColor: const Color(0xFF050816),
       appBar: AppBar(
@@ -167,9 +149,16 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 margin: const EdgeInsets.only(right: 16),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(color: const Color(0xFF3B82F6).withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
-                child: Text(
-                  "${(_seconds ~/ 60).toString().padLeft(2, '0')}:${(_seconds % 60).toString().padLeft(2, '0')}",
-                  style: const TextStyle(fontSize: 18, color: Color(0xFF3B82F6), fontWeight: FontWeight.bold),
+                // 🔥 SADECE SAAT KISMI YENİLENİYOR
+                child: ValueListenableBuilder<int>(
+                  valueListenable: _tickNotifier,
+                  builder: (context, _, __) {
+                    int currentSeconds = DateTime.now().difference(widget.workout.date).inSeconds;
+                    return Text(
+                      "${(currentSeconds ~/ 60).toString().padLeft(2, '0')}:${(currentSeconds % 60).toString().padLeft(2, '0')}",
+                      style: const TextStyle(fontSize: 18, color: Color(0xFF3B82F6), fontWeight: FontWeight.bold),
+                    );
+                  },
                 ),
               ),
             ),
@@ -177,24 +166,46 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
       ),
       body: Column(
         children: [
-          if (activeRestRemaining > 0)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: restLabel == "HAREKET ARASI" ? Colors.blue.withOpacity(0.15) : Colors.orange.withOpacity(0.1),
-                border: Border(bottom: BorderSide(color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, width: 1)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.hourglass_bottom_rounded, color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, size: 18),
-                  const SizedBox(width: 8),
-                  Text("$restLabel : $activeRestRemaining s", 
-                  style: TextStyle(color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, fontSize: 15, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
+          // 🔥 SADECE SET ARASI BİLDİRİM ÇUBUĞU YENİLENİYOR
+          ValueListenableBuilder<int>(
+            valueListenable: _tickNotifier,
+            builder: (context, _, __) {
+              int activeRestRemaining = 0;
+              String restLabel = "SET ARASI";
+
+              _setRestStarts.forEach((hash, startAt) {
+                int duration = _setRestDurations[hash] ?? 60;
+                int rem = duration - DateTime.now().difference(startAt).inSeconds;
+                if (rem > activeRestRemaining) {
+                  activeRestRemaining = rem;
+                  bool isExercise = _isExerciseRest[hash] ?? false;
+                  restLabel = isExercise ? "HAREKET ARASI" : "SET ARASI";
+                }
+              });
+
+              if (activeRestRemaining > 0) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: restLabel == "HAREKET ARASI" ? Colors.blue.withOpacity(0.15) : Colors.orange.withOpacity(0.1),
+                    border: Border(bottom: BorderSide(color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, width: 1)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.hourglass_bottom_rounded, color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, size: 18),
+                      const SizedBox(width: 8),
+                      Text("$restLabel : $activeRestRemaining s", 
+                      style: TextStyle(color: restLabel == "HAREKET ARASI" ? Colors.blueAccent : Colors.orangeAccent, fontSize: 15, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+          
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 130),
@@ -246,30 +257,36 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             final key = "${ex.name}-$setIndex";
             final hash = _getSetHash(ex, set);
             
-            int rem = 0;
-            if (_setRestStarts.containsKey(hash)) {
-              rem = (_setRestDurations[hash] ?? 60) - DateTime.now().difference(_setRestStarts[hash]!).inSeconds;
-              if (rem < 0) rem = 0;
-            }
-
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => _handleSetToggle(ex, set),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      width: 32, height: 32,
-                      decoration: BoxDecoration(
-                        color: set.isCompleted ? (rem > 0 ? Colors.orange : Colors.green) : Colors.white10,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: set.isCompleted ? Colors.transparent : Colors.white24),
-                      ),
-                      child: rem > 0 && set.isCompleted
-                          ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
-                          : Icon(set.isCompleted ? Icons.check_rounded : Icons.add_task_rounded, color: Colors.white, size: 18),
-                    ),
+                  // 🔥 SADECE ANİMASYONLU BUTON (Dönen Yuvarlak) KENDİNİ YENİLEYECEK
+                  ValueListenableBuilder<int>(
+                    valueListenable: _tickNotifier,
+                    builder: (context, _, __) {
+                      int rem = 0;
+                      if (_setRestStarts.containsKey(hash)) {
+                        rem = (_setRestDurations[hash] ?? 60) - DateTime.now().difference(_setRestStarts[hash]!).inSeconds;
+                        if (rem < 0) rem = 0;
+                      }
+
+                      return GestureDetector(
+                        onTap: () => _handleSetToggle(ex, set),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: set.isCompleted ? (rem > 0 ? Colors.orange : Colors.green) : Colors.white10,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: set.isCompleted ? Colors.transparent : Colors.white24),
+                          ),
+                          child: rem > 0 && set.isCompleted
+                              ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                              : Icon(set.isCompleted ? Icons.check_rounded : Icons.add_task_rounded, color: Colors.white, size: 18),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 8),
                   _inputField(_getController(_kgControllers, key, set.kg.toString()), "kg", (v) => set.kg = double.tryParse(v) ?? 0),
@@ -286,7 +303,7 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
                 ],
               ),
             );
-          }).toList(),
+          }), // .toList() kaldırıldı, spread operator (...) kullanıldı
         ],
       ),
     );
@@ -345,7 +362,10 @@ class _ActiveWorkoutPageState extends State<ActiveWorkoutPage> {
             child: FloatingActionButton.extended(
               heroTag: "ex_end",
               backgroundColor: workoutStarted ? Colors.green : const Color(0xFF3B82F6),
-              onPressed: workoutStarted ? () => Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WorkoutSummaryPage(workout: widget.workout, totalSeconds: _seconds))) : _startWorkout,
+              onPressed: workoutStarted ? () {
+                int finalSeconds = DateTime.now().difference(widget.workout.date).inSeconds;
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => WorkoutSummaryPage(workout: widget.workout, totalSeconds: finalSeconds)));
+              } : _startWorkout,
               icon: Icon(workoutStarted ? Icons.stop_circle_outlined : Icons.play_circle_fill_rounded, color: Colors.white),
               label: Text(workoutStarted ? "BİTİR" : "BAŞLAT", style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white)),
             ),

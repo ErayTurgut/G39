@@ -12,111 +12,122 @@ class LoginPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF050816),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 50),
-
-              // GOOGLE LOGIN
-              _buildAuthButton(
-                context: context,
-                text: "Google ile Devam Et",
-                icon: Icons.g_mobiledata_rounded,
-                color: Colors.white,
-                textColor: Colors.black,
-                onTap: () async {
-                  try {
-                    debugPrint("🚀 [G39 LOGIN] Başlatılıyor...");
-                    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-                    
-                    if (googleUser != null) {
-                      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-                      final AuthCredential credential = GoogleAuthProvider.credential(
-                        accessToken: googleAuth.accessToken,
-                        idToken: googleAuth.idToken,
-                      );
-
-                      await FirebaseAuth.instance.signInWithCredential(credential);
-                      debugPrint("🔥 [GİRİŞ BAŞARILI]");
-                      
-                      await IsarService.saveUser(
-                        googleUser.displayName ?? "Sporcu", 
-                        googleUser.email
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint("❌ G39 LOGIN HATASI: $e");
-                  }
-                },
-              ),
-
-              const SizedBox(height: 15),
-
-              // APPLE LOGIN - RESMİ APPLE BUTONU
-              SignInWithAppleButton(
-                text: "Apple ile Giriş Yap", 
-                height: 50,
-                borderRadius: BorderRadius.circular(15),
-                onPressed: () async {
-                  try {
-                    final appleCredential = await SignInWithApple.getAppleIDCredential(
-                      scopes: [
-                        AppleIDAuthorizationScopes.email,
-                        AppleIDAuthorizationScopes.fullName,
-                      ],
-                    );
-
-                    final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
-                    final AuthCredential credential = oAuthProvider.credential(
-                      idToken: appleCredential.identityToken,
-                      accessToken: appleCredential.authorizationCode,
-                    );
-
-                    final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-                    
-                    if (userCredential.user != null) {
-                      debugPrint("🍎 [APPLE GİRİŞ BAŞARILI]");
-                      await IsarService.saveUser(
-                        userCredential.user!.displayName ?? "Apple Kullanıcısı",
-                        userCredential.user!.email ?? ""
-                      );
-                    }
-                  } catch (e) {
-                    debugPrint("❌ APPLE LOGIN HATASI: $e");
-                  }
-                },
-              ),
-              
-              const SizedBox(height: 25),
-              
-              // GİZLİLİK POLİTİKASI LİNKİ
-              TextButton(
-                onPressed: () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/g39pro/ana-sayfa'); 
-                  if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-                    debugPrint('Hata: Link açılamadı $url');
-                  }
-                },
-                child: const Text(
-                  "Gizlilik Politikası ve Kullanım Şartları",
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // 1. GÖRSEL KİMLİK
+                const Icon(
+                  Icons.fitness_center_rounded,
+                  color: Colors.white,
+                  size: 80,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  "G39 PRO",
                   style: TextStyle(
-                    color: Colors.grey, 
-                    fontSize: 12,
-                    decoration: TextDecoration.underline,
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 3,
                   ),
                 ),
-              ),
-            ],
+                const Text(
+                  "Kendi Limitlerini Zorla",
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+                const SizedBox(height: 60),
+
+                /* // 🚧 ANDROID / GOOGLE LOGIN - GEÇİCİ OLARAK KALDIRILDI
+                _buildAuthButton(
+                  context: context,
+                  text: "Google ile Devam Et",
+                  icon: Icons.login_rounded, 
+                  color: Colors.white,
+                  textColor: Colors.black,
+                  onTap: () async {
+                    try {
+                      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+                      if (googleUser != null) {
+                        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+                        final AuthCredential credential = GoogleAuthProvider.credential(
+                          accessToken: googleAuth.accessToken,
+                          idToken: googleAuth.idToken,
+                        );
+                        await FirebaseAuth.instance.signInWithCredential(credential);
+                        await IsarService.saveUser(googleUser.displayName ?? "Sporcu", googleUser.email);
+                      }
+                    } catch (e) {
+                      debugPrint("Google Login Error: $e");
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                */
+
+                // 2. APPLE LOGIN (Tek ve Resmi Giriş Yöntemi)
+                SignInWithAppleButton(
+                  onPressed: () async {
+                    try {
+                      final appleCredential = await SignInWithApple.getAppleIDCredential(
+                        scopes: [
+                          AppleIDAuthorizationScopes.email,
+                          AppleIDAuthorizationScopes.fullName,
+                        ],
+                      );
+                      final OAuthProvider oAuthProvider = OAuthProvider('apple.com');
+                      final AuthCredential credential = oAuthProvider.credential(
+                        idToken: appleCredential.identityToken,
+                        accessToken: appleCredential.authorizationCode,
+                      );
+                      final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+                      if (userCredential.user != null) {
+                        await IsarService.saveUser(
+                          userCredential.user!.displayName ?? "Apple Kullanıcısı",
+                          userCredential.user!.email ?? ""
+                        );
+                      }
+                    } catch (e) {
+                      debugPrint("Apple Login Error: $e");
+                    }
+                  },
+                  style: SignInWithAppleButtonStyle.white, 
+                  height: 55,
+                  borderRadius: const BorderRadius.all(Radius.circular(15)),
+                ),
+                
+                const SizedBox(height: 40),
+                
+                // 3. GİZLİLİK VE ŞARTLAR
+                TextButton(
+                  onPressed: () async {
+                    final Uri url = Uri.parse('https://sites.google.com/view/g39pro/ana-sayfa'); 
+                    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+                      debugPrint('Link error: $url');
+                    }
+                  },
+                  child: const Text(
+                    "Gizlilik Politikası ve Kullanım Şartları",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.grey, 
+                      fontSize: 12,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Google Butonu için yardımcı widget
+  // Google Butonu Widget'ı (Kullanılmadığı için burada durabilir ya da silebilirsin)
   Widget _buildAuthButton({
     required BuildContext context,
     required String text,
@@ -139,11 +150,11 @@ class LoginPage extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 30),
+            Icon(icon, size: 24),
             const SizedBox(width: 10),
             Text(
               text,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ],
         ),

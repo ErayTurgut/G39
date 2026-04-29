@@ -35,15 +35,29 @@ class MyAudioHandler extends BaseAudioHandler {
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
+        // ✅ Uygulama AÇIKKEN ses ve bildirim gelmesini sağlar
+        defaultPresentAlert: true,
+        defaultPresentSound: true,
+        defaultPresentBadge: true,
       ),
     );
     
     await _localNotificationsPlugin.initialize(initializationSettings);
 
-    // 🔥 İzin Penceresini Çıkartır
+    // ✅ iOS İÇİN İZİN PENCERESİNİ ÇIKARTIR
+    final iosImplementation = _localNotificationsPlugin
+        .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>();
+    if (iosImplementation != null) {
+      await iosImplementation.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
+
+    // Android İzinleri
     final androidImplementation = _localNotificationsPlugin
         .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-        
     if (androidImplementation != null) {
       await androidImplementation.requestNotificationsPermission();
     }
@@ -98,16 +112,16 @@ class MyAudioHandler extends BaseAudioHandler {
             'G39 Dinlenme',
             importance: Importance.max,
             priority: Priority.high,
-            sound: RawResourceAndroidNotificationSound(fileName), // Android için uzantısız
+            sound: RawResourceAndroidNotificationSound(fileName),
             playSound: true,
           ),
           iOS: DarwinNotificationDetails(
             presentAlert: true,
-            presentSound: true,
-            sound: '$fileName.mp3', // iOS için uzantılı
+            presentSound: true, // ✅ Arka planda sesi tetikler
+            presentBadge: true,
+            sound: '$fileName.mp3', // ✅ Xcode'daki dosya ismi + .mp3
           ),
         ),
-        // 🔥 İŞTE BURASI DÜZELDİ: Artık gecikme yok, saniyesi saniyesine (exact) patlayacak!
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
